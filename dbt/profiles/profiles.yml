@@ -1,0 +1,30 @@
+lakehouse_unplugged:
+  outputs:
+    spark:
+      type: spark
+      method: thrift
+      host: spark-thrift
+      port: 10000
+      schema: default
+      auth: NONE
+      threads: 4
+
+      # Verbinding / retry-instellingen
+      connect_retries: 5
+      connect_timeout: 60
+      retry_all: true
+
+      # Spark & Delta Lake configuratie
+      spark_conf:
+        spark.sql.extensions: io.delta.sql.DeltaSparkSessionExtension
+        spark.sql.catalog.spark_catalog: org.apache.spark.sql.delta.catalog.DeltaCatalog
+        spark.sql.warehouse.dir: s3a://lakehouse/warehouse
+        spark.hadoop.fs.s3a.endpoint: http://minio:9000
+        spark.hadoop.fs.s3a.path.style.access: "true"
+        spark.hadoop.fs.s3a.access.key: "{{ env_var('AWS_ACCESS_KEY_ID') }}"
+        spark.hadoop.fs.s3a.secret.key: "{{ env_var('AWS_SECRET_ACCESS_KEY') }}"
+        spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+        spark.delta.logStore.class: org.apache.spark.sql.delta.storage.S3SingleDriverLogStore
+        spark.delta.logStore.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+
+  target: spark
