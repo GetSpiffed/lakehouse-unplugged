@@ -1,0 +1,21 @@
+default:
+  outputs:
+    dev:
+      type: spark
+      method: thrift
+
+      host: thrift-server
+      port: 10000
+
+      # Iceberg schema (database) in spark_catalog
+      schema: default
+
+      # Geen auth in lokale stack
+      auth: NONE
+
+      # Optioneel maar handig: expliciet catalog
+      # dbt-spark gebruikt standaard spark_catalog,
+      # dit maakt het gedrag expliciet en voorspelbaar
+      catalog: spark_catalog
+
+  target: dev

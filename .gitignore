@@ -1,0 +1,24 @@
+# Python / DBT / Jupyter
+__pycache__/
+*.pyc
+.venv/
+dbt_packages/
+logs/
+.DS_Store
+
+# VSCode / Devcontainer
+.vscode/
+.devcontainer/.cache/
+.devcontainer/.tokens/
+
+# Docker
+docker-data/
+minio-data/
+warehouse/
+spark-thrift-logs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Spark Polaris
+shared/

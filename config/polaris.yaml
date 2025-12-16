@@ -1,0 +1,27 @@
+polaris:
+  authentication:
+    type: oauth2
+
+  persistence:
+    type: jdbc
+    datasource:
+      jdbc-url: jdbc:postgresql://polaris-db:5432/polaris
+      username: polaris
+      password: polaris
+
+server:
+  storage-service:
+    catalogs:
+      default:
+        warehouse: s3://lakehouse
+        properties:
+          s3.endpoint: http://minio:9000
+          s3.access-key-id: minioadmin
+          s3.secret-access-key: minioadmin
+          s3.path-style-access: true
+
+quarkus:
+  http:
+    port: 8181
+  log:
+    level: INFO

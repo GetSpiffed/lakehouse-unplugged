@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -e
+
+echo "🔎 Verifying Lakehouse Unplugged dev container..."
+echo "------------------------------------------------"
+
+# --------------------------------------------------------------------
+# 1. Polaris health
+# --------------------------------------------------------------------
+echo "🔍 Checking Polaris health..."
+curl -fsS http://polaris:8182/q/health | jq .
+echo "✔ Polaris is healthy."
+echo ""
+
+# --------------------------------------------------------------------
+# 2. Optional: Polaris OAuth token check
+# --------------------------------------------------------------------
+if [ -n "${POLARIS_CLIENT_ID:-}" ] && [ -n "${POLARIS_CLIENT_SECRET:-}" ]; then
+  echo "🔐 Checking Polaris OAuth token endpoint..."
+
+  curl -fsS -X POST http://polaris:8181/api/catalog/v1/oauth/tokens \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    -d "grant_type=client_credentials&client_id=${POLARIS_CLIENT_ID}&client_secret=${POLARIS_CLIENT_SECRET}" \
+    | jq '.access_token' >/dev/null
+
+  echo "✔ Polaris OAuth token request succeeded."
+  echo ""
+else
+  echo "ℹ️ Polaris credentials not set, skipping OAuth check."
+  echo ""
+fi
+
+# --------------------------------------------------------------------
+# 3. Spark Master UI
+# --------------------------------------------------------------------
+echo "⚡ Checking Spark Master UI..."
+if curl -fsS http://spark-master:8080 | grep -q "Spark Master"; then
+  echo "✔ Spark master reachable at http://spark-master:8080"
+else
+  echo "❌ Spark master not reachable."
+  exit 1
+fi
+echo ""
+
+# --------------------------------------------------------------------
+# 4. Spark filesystem catalog smoke test
+# --------------------------------------------------------------------
+echo "🧪 Running Spark filesystem catalog smoke test..."
+spark-sql -e "SHOW DATABASES;" >/dev/null
+echo "✔ Spark SQL is operational."
+echo ""
+
+# --------------------------------------------------------------------
+# 5. Tooling versions
+# --------------------------------------------------------------------
+echo "📦 Tooling versions:"
+
+if command -v python3 >/dev/null 2>&1; then
+  echo "• Python: $(python3 --version)"
+else
+  echo "• Python: not found"
+fi
+
+if command -v dbt >/dev/null 2>&1; then
+  echo "• dbt: $(dbt --version | head -n 1)"
+else
+  echo "• dbt: not found"
+fi
+
+if python3 -c "import pyspark" >/dev/null 2>&1; then
+  PYSPARK_VER=$(python3 -c 'import pyspark; print(pyspark.__version__)')
+  echo "• PySpark: ${PYSPARK_VER}"
+else
+  echo "• PySpark: not available"
+fi
+
+echo ""
+echo "------------------------------------------------"
+echo "✅ Dev environment verification complete."

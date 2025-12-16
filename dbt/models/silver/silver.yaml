@@ -1,0 +1,43 @@
+version: 2
+
+models:
+
+  - name: md_voertuig
+    description: "Centraal master data object voor voertuigen."
+    columns:
+      - name: kenteken
+        tests: [not_null, unique]
+      - name: motorconfiguratie_id
+        tests:
+          - not_null
+          - relationships: {to: ref('rd_motorconfiguratie'), field: motorconfiguratie_id}
+
+  - name: rd_motorconfiguratie
+    description: "Unieke motorconfiguraties gebaseerd op voertuigtechniek."
+    columns:
+      - name: motorconfiguratie_id
+        tests: [not_null, unique]
+
+  - name: rd_voertuig_classificaties
+    description: "EU-categorieën, subcategorieën en typegoedkeuringen."
+    columns:
+      - name: kenteken
+        tests:
+          - not_null
+          - relationships: {to: ref('md_voertuig'), field: kenteken}
+
+  - name: rd_voertuig_statuswaarden
+    description: "Statusindicatoren van voertuigen."
+    columns:
+      - name: kenteken
+        tests:
+          - not_null
+          - relationships: {to: ref('md_voertuig'), field: kenteken}
+
+  - name: rd_rdw_referenties
+    description: "RDW subresource koppelingen."
+    columns:
+      - name: kenteken
+        tests:
+          - not_null
+          - relationships: {to: ref('md_voertuig'), field: kenteken}

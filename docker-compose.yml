@@ -1,0 +1,217 @@
+name: lakehouse-unplugged
+
+services:
+  # ======================================================================
+  # 🗄️ MinIO – lokale S3 opslag
+  # ======================================================================
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lakehouse
+
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+        mc mb -p local/warehouse;
+        tail -f /dev/null
+      "
+    networks:
+      - lakehouse
+
+  # ======================================================================
+  # 🔭 Polaris
+  # ======================================================================
+  polaris:
+    image: apache/polaris:1.1.0-incubating
+    platform: linux/amd64
+    container_name: polaris
+    env_file:
+      - ./.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8182/q/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: dummy
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      POLARIS_CATALOG_WAREHOUSE: s3://warehouse
+
+      POLARIS_BOOTSTRAP_CREDENTIALS: "POLARIS,admin,password"
+      polaris.realm-context.realms: "POLARIS"
+
+      POLARIS_OAUTH2_TOKEN_URL: http://polaris:8181/api/catalog/v1/oauth/tokens
+      POLARIS_OAUTH2_CLIENT_ID: ${POLARIS_CLIENT_ID}
+      POLARIS_OAUTH2_CLIENT_SECRET: ${POLARIS_CLIENT_SECRET}
+
+      POLARIS_UI_ENABLED: "true"
+      POLARIS_FEATURES_ICEBERG_COMPAT_ENABLED: "true"
+      POLARIS_FEATURES_ICEBERG_COMPAT_PREFIX: "/api/catalog"
+    ports:
+      - "8181:8181"
+      - "8182:8182"
+      - "8282:8282"
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - lakehouse
+
+  polaris-bootstrap:
+    build:
+      context: ./docker/polaris-bootstrap
+    env_file:
+      - ./.env
+    volumes:
+      - ./.env:/workspace/.env
+    environment:
+      POLARIS_HOST: polaris
+      POLARIS_PORT: "8181"
+      POLARIS_OAUTH2_TOKEN_URL: http://polaris:8181/api/catalog/v1/oauth/tokens
+      POLARIS_OAUTH2_CLIENT_ID: admin
+      POLARIS_OAUTH2_CLIENT_SECRET: password
+    depends_on:
+      polaris:
+        condition: service_healthy
+    networks:
+      - lakehouse
+
+  # ======================================================================
+  # ⚙️ Spark (filesystem writer)
+  # ======================================================================
+  spark-base-builder:
+    build:
+      context: ./docker/spark-base
+    image: lakehouse-unplugged-spark-base:latest
+    command: ["true"]
+    networks:
+      - lakehouse
+
+  spark-master:
+    image: lakehouse-unplugged-spark-base:latest
+    depends_on:
+      spark-base-builder:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+    environment:
+      SPARK_CATALOG_MODE: filesystem   # of: polaris
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      --host spark-master --port 7077 --webui-port 8080
+    ports:
+      - "8080:8080"
+    networks:
+      - lakehouse
+
+  spark-worker:
+    image: lakehouse-unplugged-spark-base:latest
+    depends_on:
+      spark-master:
+        condition: service_started
+    environment:
+      SPARK_CATALOG_MODE: filesystem   # of: polaris
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077 --webui-port 8081
+    ports:
+      - "8081:8081"
+    networks:
+      - lakehouse
+
+  thrift-server:
+    image: lakehouse-unplugged-spark-base:latest
+    depends_on:
+      - spark-master
+      - spark-worker
+    environment:
+      SPARK_CATALOG_MODE: filesystem   # of: polaris
+    command: >
+      /opt/spark/bin/spark-submit
+      --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
+      --master spark://spark-master:7077
+    ports:
+      - "10000:10000"
+    networks:
+      - lakehouse
+
+  # ======================================================================
+  # 🧠 Trino (analytics via Polaris)
+  # ======================================================================
+  trino:
+    image: trinodb/trino:455
+    container_name: trino
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./docker/trino/etc:/etc/trino
+    depends_on:
+      - polaris
+      - minio
+    networks:
+      - lakehouse
+
+  # ======================================================================
+  # 💻 Dev Container (VS Code Remote)
+  # ======================================================================
+  dev:
+    build:
+      context: ./docker/dev
+      dockerfile: Dockerfile
+    container_name: lakehouse-unplugged-dev
+    command: sleep infinity
+  
+    depends_on:
+      minio:
+        condition: service_healthy
+      polaris:
+        condition: service_healthy
+      spark-master:
+        condition: service_started
+      spark-worker:
+        condition: service_started
+      thrift-server:
+        condition: service_started
+  
+    environment:
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+      SPARK_MASTER: spark://spark-master:7077
+      MINIO_ENDPOINT: http://minio:9000
+      POLARIS_URI: http://polaris:8181
+      DBT_PROFILES_DIR: /workspace/dbt
+  
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+  
+    working_dir: /workspace
+    networks:
+      - lakehouse
+
+volumes:
+  minio-data:
+
+networks:
+  lakehouse:
+    driver: bridge

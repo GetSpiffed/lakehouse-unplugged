@@ -1,0 +1,32 @@
+name: lakehouse_unplugged
+version: "1.0.0"
+config-version: 2
+
+models:
+  lakehouse_unplugged:
+    sources:
+      +materialized: view
+
+    silver:
+      +schema: silver
+      +on_schema_change: sync_all_columns
+
+      md:
+        +materialized: incremental
+        +incremental_strategy: merge
+        +unique_key: kenteken
+
+      rd:
+        +materialized: table
+
+    gold:
+      +schema: gold
+      +on_schema_change: sync_all_columns
+
+      dim:
+        +materialized: table
+
+      fact:
+        +materialized: incremental
+        +incremental_strategy: merge
+        +unique_key: event_id
