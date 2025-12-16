@@ -112,20 +112,41 @@ if ($i -eq $MaxRetries) {
 # Step 4: Extract credentials automatically
 # --------------------------------------------------------------------
 Write-Host "🔑 Extracting Polaris credentials..." -ForegroundColor $Yellow
-$CREDS = docker logs polaris 2>&1 | Select-String "root principal credentials:"
 
-if ($CREDS) {
-    if ($CREDS -match "id=(\S+)\s+secret=(\S+)") {
-        $CLIENT_ID = $matches[1]
-        $CLIENT_SECRET = $matches[2]
-    } else {
-        Write-Host "❌ Could not parse credentials format from Polaris logs" -ForegroundColor $Red
-        exit 1
+function Get-PolarisCredentials {
+    param(
+        [int]$Tail = 200
+    )
+
+    $logOutput = docker logs polaris --tail $Tail --since 5m 2>&1
+    $credentialMatches = $logOutput | Select-String "root principal credentials:" -AllMatches
+
+    if (-not $credentialMatches) {
+        return $null
     }
-} else {
-    Write-Host "❌ Could not find credentials in Polaris logs" -ForegroundColor $Red
+
+    # Use the most recent match to avoid stale credentials from earlier runs
+    $latestMatch = $credentialMatches[-1].Line
+    if ($latestMatch -match "id=(\S+)\s+secret=(\S+)") {
+        return [PSCustomObject]@{
+            ClientId     = $matches[1]
+            ClientSecret = $matches[2]
+        }
+    }
+
+    return $null
+}
+
+$Credentials = Get-PolarisCredentials
+
+if (-not $Credentials) {
+    Write-Host "❌ Could not parse Polaris credentials from logs" -ForegroundColor $Red
+    Write-Host "   Try checking recent output: docker logs polaris --tail 50" -ForegroundColor $Gray
     exit 1
 }
+
+$CLIENT_ID = $Credentials.ClientId
+$CLIENT_SECRET = $Credentials.ClientSecret
 
 # Safely update .env
 $EnvPath = ".\.env"
