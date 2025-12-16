@@ -98,7 +98,7 @@ services:
       - lakehouse
 
   # ======================================================================
-  # ⚙️ Spark (filesystem writer)
+  # ⚙️ Spark (Polaris catalog)
   # ======================================================================
   spark-base-builder:
     build:
@@ -116,7 +116,7 @@ services:
       minio:
         condition: service_healthy
     environment:
-      SPARK_CATALOG_MODE: filesystem   # of: polaris
+      SPARK_CATALOG_MODE: polaris   # of: filesystem
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
       --host spark-master --port 7077 --webui-port 8080
@@ -131,7 +131,7 @@ services:
       spark-master:
         condition: service_started
     environment:
-      SPARK_CATALOG_MODE: filesystem   # of: polaris
+      SPARK_CATALOG_MODE: polaris   # of: filesystem
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
       spark://spark-master:7077 --webui-port 8081
@@ -146,7 +146,7 @@ services:
       - spark-master
       - spark-worker
     environment:
-      SPARK_CATALOG_MODE: filesystem   # of: polaris
+      SPARK_CATALOG_MODE: polaris   # of: filesystem
     command: >
       /opt/spark/bin/spark-submit
       --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2

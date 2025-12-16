@@ -98,20 +98,19 @@ Alle services draaien in één Docker-netwerk.
 
 ## Waarom gebruikt Spark Polaris nog niet direct?
 
-Kort gezegd: **Spark kan het technisch wel, maar nog niet betrouwbaar genoeg**.
+Kort gezegd: **Spark schrijft standaard via Polaris**.
 
-- Spark is historisch **filesystem-first**
-- Iceberg REST catalogs zijn relatief nieuw in Spark
-- Schrijven via REST vereist catalog-mutaties, commit-coördinatie en OAuth2
-- In Spark 3.5.x is dit **incompleet en instabiel**, vooral bij writes (`CREATE`, `INSERT`, `MERGE`)
+- Spark gebruikt de Polaris REST catalog voor DDL/DML en commit-coördinatie
+- Metadata loopt via Polaris in plaats van direct naar filesystem
+- Polaris verzorgt governance en authenticatie via OAuth2
 
-Daarom geldt in deze stack:
+Fallback is mogelijk:
 
-- **Spark → filesystem (S3A) → Iceberg**  
-- **Polaris → REST catalog → governance**  
+- **Spark → Polaris REST catalog → Iceberg** (default, read/write via Polaris)
+- **Spark → filesystem (S3A) → Iceberg** (alleen bij expliciete fallback)
 - **Trino → Polaris → Iceberg**
 
-Dit is vandaag de meest robuuste en gangbare aanpak.
+Zo blijft Polaris de bron van waarheid voor metadata, terwijl een filesystem-fallback beschikbaar is voor noodgevallen.
 
 ---
 
@@ -120,14 +119,14 @@ Dit is vandaag de meest robuuste en gangbare aanpak.
 De stack ondersteunt één expliciete switch:
 
 ```bash
-SPARK_CATALOG_MODE=filesystem   # default (stabiel)
+SPARK_CATALOG_MODE=polaris      # default (REST catalog)
 # of
-SPARK_CATALOG_MODE=polaris      # experimenteel
+SPARK_CATALOG_MODE=filesystem   # fallback (direct filesystem)
 ```
 
 - Wordt gezet per Spark service
 - Selecteert bij startup de juiste `spark-defaults.conf`
-- Maakt experimenteren mogelijk zonder herbouw van de stack
+- Maakt het mogelijk om terug te schakelen naar filesystem zonder herbouw van de stack
 
 ---
 
