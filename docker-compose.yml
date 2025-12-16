@@ -115,6 +115,8 @@ services:
         condition: service_completed_successfully
       minio:
         condition: service_healthy
+    env_file:
+      - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
     command: >
@@ -130,6 +132,8 @@ services:
     depends_on:
       spark-master:
         condition: service_started
+    env_file:
+      - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
     command: >
@@ -145,6 +149,8 @@ services:
     depends_on:
       - spark-master
       - spark-worker
+    env_file:
+      - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
     command: >
