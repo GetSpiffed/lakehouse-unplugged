@@ -55,6 +55,7 @@ COPY conf/spark-defaults-polaris.conf /opt/spark/conf/
 # Entrypoint
 # ======================================================================
 COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
 # ======================================================================
