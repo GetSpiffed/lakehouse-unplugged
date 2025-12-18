@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+# Fast-fail curl options to avoid long hangs during devcontainer startup
+CURL_OPTS=(--fail --show-error --silent --max-time 5 --connect-timeout 3)
+
 echo "🔎 Verifying Lakehouse Unplugged dev container..."
 echo "------------------------------------------------"
 
@@ -8,7 +11,7 @@ echo "------------------------------------------------"
 # 1. Polaris health
 # --------------------------------------------------------------------
 echo "🔍 Checking Polaris health..."
-curl -fsS http://polaris:8182/q/health | jq .
+curl "${CURL_OPTS[@]}" http://polaris:8182/q/health | jq .
 echo "✔ Polaris is healthy."
 echo ""
 
@@ -18,7 +21,7 @@ echo ""
 if [ -n "${POLARIS_CLIENT_ID:-}" ] && [ -n "${POLARIS_CLIENT_SECRET:-}" ]; then
   echo "🔐 Checking Polaris OAuth token endpoint..."
 
-  curl -fsS -X POST http://polaris:8181/api/catalog/v1/oauth/tokens \
+  curl "${CURL_OPTS[@]}" -X POST http://polaris:8181/api/catalog/v1/oauth/tokens \
     -H 'Content-Type: application/x-www-form-urlencoded' \
     -d "grant_type=client_credentials&client_id=${POLARIS_CLIENT_ID}&client_secret=${POLARIS_CLIENT_SECRET}" \
     | jq '.access_token' >/dev/null
@@ -34,7 +37,7 @@ fi
 # 3. Spark Master UI
 # --------------------------------------------------------------------
 echo "⚡ Checking Spark Master UI..."
-if curl -fsS http://spark-master:8080 | grep -q "Spark Master"; then
+if curl "${CURL_OPTS[@]}" http://spark-master:8080 | grep -q "Spark Master"; then
   echo "✔ Spark master reachable at http://spark-master:8080"
 else
   echo "❌ Spark master not reachable."
@@ -46,8 +49,17 @@ echo ""
 # 4. Spark filesystem catalog smoke test
 # --------------------------------------------------------------------
 echo "🧪 Running Spark filesystem catalog smoke test..."
-spark-sql -e "SHOW DATABASES;" >/dev/null
-echo "✔ Spark SQL is operational."
+if timeout 45s spark-sql -S -e "SHOW DATABASES;" >/dev/null; then
+  echo "✔ Spark SQL is operational."
+else
+  STATUS=$?
+  if [ $STATUS -eq 124 ]; then
+    echo "❌ Spark SQL check timed out (45s)."
+  else
+    echo "❌ Spark SQL check failed with exit code ${STATUS}."
+  fi
+  exit 1
+fi
 echo ""
 
 # --------------------------------------------------------------------

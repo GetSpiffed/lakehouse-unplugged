@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+# Fast-fail curl options to avoid long hangs during initial container bring-up
+CURL_OPTS=(--fail --show-error --silent --max-time 5 --connect-timeout 3)
+
 echo "🚀 Setting up Lakehouse Unplugged dev environment..."
 echo "----------------------------------------------------"
 
@@ -10,7 +13,7 @@ echo "----------------------------------------------------"
 echo "🔍 Waiting for Polaris health check..."
 
 RETRIES=30
-while ! curl -fsS http://polaris:8182/q/health >/dev/null 2>&1; do
+while ! curl "${CURL_OPTS[@]}" http://polaris:8182/q/health >/dev/null 2>&1; do
   if [ $RETRIES -eq 0 ]; then
     echo "❌ Polaris not responding after ~60s."
     exit 1
@@ -92,9 +95,17 @@ fi
 # --------------------------------------------------------------------
 echo "⚡ Running Spark filesystem catalog smoke test..."
 
-spark-sql -e "SHOW DATABASES;" >/dev/null
-
-echo "✔ Spark filesystem catalog reachable."
+if timeout 45s spark-sql -S -e "SHOW DATABASES;" >/dev/null; then
+  echo "✔ Spark filesystem catalog reachable."
+else
+  STATUS=$?
+  if [ $STATUS -eq 124 ]; then
+    echo "❌ Spark catalog check timed out (45s)."
+  else
+    echo "❌ Spark catalog check failed with exit code ${STATUS}."
+  fi
+  exit $STATUS
+fi
 
 # --------------------------------------------------------------------
 # 6. Summary
