@@ -185,7 +185,7 @@ def ensure_catalog(token: str) -> None:
         print(f"✓ Catalog '{CATALOG_NAME}' already exists")
         return
 
-    body = {
+    payload = {
         "name": CATALOG_NAME,
         "type": "ICEBERG_REST",
         "properties": {
@@ -193,8 +193,8 @@ def ensure_catalog(token: str) -> None:
         },
     }
 
-    created = api_post("catalogs", headers, body)
-    ensure_status(created, action="create catalog", ok_status=(201,), payload=body)
+    created = api_post("catalogs", headers, payload)
+    ensure_status(created, action="create catalog", ok_status=(201,), payload=payload)
     print(f"✓ Created catalog '{CATALOG_NAME}'")
 
 
