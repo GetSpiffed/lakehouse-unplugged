@@ -173,6 +173,14 @@ cd lakehouse-unplugged
 docker compose up -d --build
 ```
 
+### Polaris bootstrap validatie
+
+```bash
+docker compose up -d polaris minio polaris-bootstrap
+docker compose logs -f polaris-bootstrap
+docker compose exec spark-master bash -lc "/opt/spark/bin/spark-sql -e 'SHOW CATALOGS'"
+```
+
 Stoppen:
 
 ```bash
