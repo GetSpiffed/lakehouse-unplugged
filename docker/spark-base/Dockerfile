@@ -8,6 +8,7 @@ ARG SPARK_VERSION=3.5
 ARG SCALA_VERSION=2.12
 ARG HADOOP_VERSION=3.3.4
 ARG AWS_SDK_VERSION=1.12.783
+ARG POLARIS_SPARK_VERSION=1.2.0-incubating
 
 USER root
 
@@ -43,7 +44,11 @@ RUN mkdir -p /opt/spark/jars && \
       https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_VERSION}/hadoop-aws-${HADOOP_VERSION}.jar && \
     curl -L -o /opt/spark/jars/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar \
       https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar && \
+    curl -L -o /opt/spark/jars/polaris-spark-${SPARK_VERSION}_${SCALA_VERSION}-${POLARIS_SPARK_VERSION}.jar \
+      https://repo1.maven.org/maven2/org/apache/polaris/polaris-spark-${SPARK_VERSION}_${SCALA_VERSION}/${POLARIS_SPARK_VERSION}/polaris-spark-${SPARK_VERSION}_${SCALA_VERSION}-${POLARIS_SPARK_VERSION}.jar && \
     echo "✓ Iceberg + Hadoop AWS (S3A) jars installed"
+
+RUN ls -la /opt/spark/jars | grep -i polaris
 
 # ======================================================================
 # Spark configuration variants
