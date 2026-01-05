@@ -130,6 +130,18 @@ SPARK_CATALOG_MODE=filesystem   # fallback (direct filesystem)
 
 ---
 
+## Polaris Spark check
+
+Voer in een PySpark notebook/JupyterLab:
+
+```python
+print("spark.jars.packages =", spark.conf.get("spark.jars.packages", ""))
+print("spark.sql.defaultCatalog =", spark.conf.get("spark.sql.defaultCatalog", ""))
+print("spark.range(1).count() =", spark.range(1).count())
+```
+
+---
+
 ## Services in het kort
 
 - **MinIO** – S3-compatible storage
