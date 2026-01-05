@@ -186,13 +186,11 @@ def ensure_catalog(token: str) -> None:
         return
 
     body = {
-        "catalog": {
-            "name": CATALOG_NAME,
-            "type": "ICEBERG_REST",
-            "properties": {
-                "uri": f"http://{POLARIS_HOST}:{POLARIS_PORT}/api/catalog/v1/{CATALOG_NAME}"
-            },
-        }
+        "name": CATALOG_NAME,
+        "type": "ICEBERG_REST",
+        "properties": {
+            "uri": f"http://{POLARIS_HOST}:{POLARIS_PORT}/api/catalog"
+        },
     }
 
     created = api_post("catalogs", headers, body)
