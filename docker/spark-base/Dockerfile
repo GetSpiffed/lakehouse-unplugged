@@ -56,6 +56,8 @@ RUN ls -la /opt/spark/jars | grep -i polaris
 COPY conf/spark-defaults-filesystem.conf /opt/spark/conf/
 COPY conf/spark-defaults-polaris.conf /opt/spark/conf/
 
+
+
 # ======================================================================
 # Entrypoint
 # ======================================================================
