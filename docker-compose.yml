@@ -83,16 +83,13 @@ services:
       context: ./docker/polaris-bootstrap
     env_file:
       - ./.env
-    volumes:
-      - ./.env:/workspace/.env
     environment:
-      POLARIS_HOST: polaris
-      POLARIS_PORT: "8181"
-      POLARIS_OAUTH2_TOKEN_URL: http://polaris:8181/api/catalog/v1/oauth/tokens
-      POLARIS_OAUTH2_CLIENT_ID: admin
-      POLARIS_OAUTH2_CLIENT_SECRET: password
+      POLARIS_BASE: http://polaris:8181
+      MINIO_ENDPOINT: http://minio:9000
     depends_on:
       polaris:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - lakehouse
