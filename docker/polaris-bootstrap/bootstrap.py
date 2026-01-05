@@ -67,9 +67,45 @@ def ensure_status(
     *,
     action: str,
     ok_status: Iterable[int],
+    payload: dict | None = None,
 ) -> requests.Response:
     if response.status_code in ok_status:
         return response
+
+    method = getattr(response.request, "method", "UNKNOWN")
+    url = getattr(response.request, "url", "UNKNOWN")
+
+    def redact_payload(data: dict | None) -> dict | None:
+        if data is None:
+            return None
+        if isinstance(data, dict):
+            redacted = {}
+            for key, value in data.items():
+                if str(key).lower() == "clientsecret":
+                    redacted[key] = "REDACTED"
+                elif isinstance(value, dict):
+                    redacted[key] = redact_payload(value)
+                elif isinstance(value, list):
+                    redacted[key] = [
+                        redact_payload(item) if isinstance(item, dict) else item
+                        for item in value
+                    ]
+                else:
+                    redacted[key] = value
+            return redacted
+        return data
+
+    redacted_payload = redact_payload(payload)
+
+    print("❌ Request failed")
+    print(f"  Request: {method} {url}")
+    print(f"  Status: {response.status_code}")
+    print("  Response headers:")
+    print(json.dumps(dict(response.headers), indent=2))
+    print("  Response body:")
+    print(response.text)
+    print("  Request payload:")
+    print(json.dumps(redacted_payload, indent=2) if redacted_payload is not None else "None")
 
     raise RuntimeError(
         f"❌ {action} failed with {response.status_code}: {response.text}"
@@ -160,7 +196,7 @@ def ensure_catalog(token: str) -> None:
     }
 
     created = api_post("catalogs", headers, body)
-    ensure_status(created, action="create catalog", ok_status=(201,))
+    ensure_status(created, action="create catalog", ok_status=(201,), payload=body)
     print(f"✓ Created catalog '{CATALOG_NAME}'")
 
 
