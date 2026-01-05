@@ -224,6 +224,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       POLARIS_URI: http://polaris:8181
       DBT_PROFILES_DIR: /workspace/dbt
+      SPARK_DRIVER_HOST: lakehouse-unplugged-dev  
   
     volumes:
       - .:/workspace
