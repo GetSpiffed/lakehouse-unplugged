@@ -41,7 +41,7 @@ services:
   # 🔭 Polaris
   # ======================================================================
   polaris:
-    image: apache/polaris:1.1.0-incubating
+    image: apache/polaris:1.2.0-incubating
     platform: linux/amd64
     container_name: polaris
     env_file:
