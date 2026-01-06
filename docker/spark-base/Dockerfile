@@ -16,18 +16,24 @@ USER root
 # ======================================================================
 # System tools & Python
 # ======================================================================
-RUN apt-get update -qq && \
+RUN set -eux; \
+    apt-get update -qq; \
     apt-get install -y --no-install-recommends \
-      curl build-essential openjdk-17-jdk jq \
-      software-properties-common gnupg && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-      python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python${PYTHON_VERSION}-venv && \
-    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
-    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
-    python3 --version && \
-    python${PYTHON_VERSION} -m ensurepip --upgrade && \
+      curl build-essential openjdk-17-jdk jq gnupg; \
+    if ! apt-get install -y --no-install-recommends \
+      python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python${PYTHON_VERSION}-venv python3-pip; then \
+      apt-get install -y --no-install-recommends software-properties-common; \
+      add-apt-repository ppa:deadsnakes/ppa; \
+      apt-get update -qq; \
+      apt-get install -y --no-install-recommends \
+        python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python${PYTHON_VERSION}-venv python3-pip; \
+    fi; \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1; \
+    update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION}; \
+    update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1; \
+    update-alternatives --set python /usr/bin/python${PYTHON_VERSION}; \
+    python3 --version; \
+    python${PYTHON_VERSION} -m pip install --upgrade pip; \
     rm -rf /var/lib/apt/lists/*
 
 # Zorg dat executors/driver standaard dezelfde minor gebruiken (kan overschreven worden via spark-defaults.conf)
