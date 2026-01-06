@@ -109,6 +109,8 @@ services:
   spark-base-builder:
     build:
       context: ./docker/spark-base
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.11}
     image: lakehouse-unplugged-spark-base:latest
     command: ["true"]
     networks:
