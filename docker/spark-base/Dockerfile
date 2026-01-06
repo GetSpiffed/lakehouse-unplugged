@@ -6,6 +6,7 @@ FROM apache/spark:3.5.1
 ARG ICEBERG_VERSION=1.10.0
 ARG SPARK_VERSION=3.5
 ARG SCALA_VERSION=2.12
+ARG HADOOP_VERSION=3.3.4
 ARG AWS_SDK_VERSION=1.12.783
 ARG POLARIS_SPARK_VERSION=1.2.0-incubating
 
@@ -42,26 +43,19 @@ ENV PYSPARK_PYTHON=/opt/py311/bin/python \
 # Spark JARs: Iceberg + AWS + Hadoop S3A
 # ======================================================================
 RUN set -eux; \
-    HADOOP_VERSION="$(/opt/spark/bin/spark-submit --version 2>&1 | awk '/Hadoop/ {print $2; exit}')"; \
-    if [ -z "${HADOOP_VERSION}" ]; then \
-      HADOOP_VERSION="$(hadoop version 2>/dev/null | head -n1 | awk '{print $2}')"; \
-    fi; \
-    if [ -z "${HADOOP_VERSION}" ]; then \
-      echo "ERROR: Unable to detect Hadoop version from Spark image." >&2; \
-      exit 1; \
-    fi; \
-    echo "Detected Hadoop version: ${HADOOP_VERSION}"; \
+    echo "Using Hadoop version: ${HADOOP_VERSION}"; \
     mkdir -p /opt/spark/jars; \
-    curl -L -o /opt/spark/jars/iceberg-spark-runtime-${SPARK_VERSION}_${SCALA_VERSION}-${ICEBERG_VERSION}.jar \
+    curl -fL -o /opt/spark/jars/iceberg-spark-runtime-${SPARK_VERSION}_${SCALA_VERSION}-${ICEBERG_VERSION}.jar \
       https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-${SPARK_VERSION}_${SCALA_VERSION}/${ICEBERG_VERSION}/iceberg-spark-runtime-${SPARK_VERSION}_${SCALA_VERSION}-${ICEBERG_VERSION}.jar; \
-    curl -L -o /opt/spark/jars/iceberg-aws-bundle-${ICEBERG_VERSION}.jar \
+    curl -fL -o /opt/spark/jars/iceberg-aws-bundle-${ICEBERG_VERSION}.jar \
       https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_VERSION}/iceberg-aws-bundle-${ICEBERG_VERSION}.jar; \
-    curl -L -o /opt/spark/jars/hadoop-aws-${HADOOP_VERSION}.jar \
+    curl -fL -o /opt/spark/jars/hadoop-aws-${HADOOP_VERSION}.jar \
       https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_VERSION}/hadoop-aws-${HADOOP_VERSION}.jar; \
-    curl -L -o /opt/spark/jars/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar \
+    curl -fL -o /opt/spark/jars/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar \
       https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar; \
     test -f /opt/spark/jars/hadoop-aws-${HADOOP_VERSION}.jar; \
     echo "✓ Iceberg + Hadoop AWS (S3A) jars installed"
+
 
 
 # ======================================================================

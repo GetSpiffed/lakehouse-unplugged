@@ -111,6 +111,8 @@ services:
       context: ./docker/spark-base
       args:
         PYTHON_VERSION: ${PYTHON_VERSION:-3.11}
+        HADOOP_VERSION: ${HADOOP_VERSION:-3.3.4}
+        AWS_SDK_VERSION: ${AWS_SDK_VERSION:-1.12.783}
     image: lakehouse-unplugged-spark-base:latest
     command: ["true"]
     networks:
@@ -274,7 +276,7 @@ services:
       JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
       SPARK_MASTER: spark://spark-master:7077
       MINIO_ENDPOINT: http://minio:9000
-      POLARIS_URI: http://polaris:8181
+      POLARIS_URI: http://polaris:8181/api/catalog
       DBT_PROFILES_DIR: /workspace/dbt
   
     volumes:
