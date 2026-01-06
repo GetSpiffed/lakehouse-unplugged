@@ -5,10 +5,10 @@ FROM ${BASE_IMAGE}
 ENV SPARK_HOME=/opt/spark
 ENV PATH="${SPARK_HOME}/bin:${PATH}"
 
-# Install Jupyter (geen pip pyspark installeren!)
-RUN pip install --no-cache-dir notebook jupyterlab ipykernel
+# Install Jupyter + PySpark bindings
+RUN pip install --no-cache-dir notebook jupyterlab ipykernel pyspark==3.5.1
 
-# (optioneel) registreer een kernel naam
+# registreer een kernel naam
 RUN python -m ipykernel install --name lakehouse --display-name "Lakehouse (Spark Driver)" --sys-prefix
 
 # Jupyter config
