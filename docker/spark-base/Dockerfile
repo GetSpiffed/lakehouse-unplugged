@@ -19,17 +19,23 @@ USER root
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       curl build-essential openjdk-17-jdk jq \
-      python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python3-pip && \
+      software-properties-common gnupg && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python${PYTHON_VERSION}-venv && \
     ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
     python3 --version && \
+    python${PYTHON_VERSION} -m ensurepip --upgrade && \
     rm -rf /var/lib/apt/lists/*
 
 # Zorg dat executors/driver standaard dezelfde minor gebruiken (kan overschreven worden via spark-defaults.conf)
 ENV PYSPARK_PYTHON=/usr/bin/python3 \
     PYSPARK_DRIVER_PYTHON=/usr/bin/python3
 
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
+RUN python${PYTHON_VERSION} -m pip install --no-cache-dir --upgrade pip && \
+    python${PYTHON_VERSION} -m pip install --no-cache-dir \
       pyspark==${SPARK_VERSION} \
       pyiceberg \
       boto3 \
