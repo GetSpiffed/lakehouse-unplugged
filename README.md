@@ -143,6 +143,12 @@ Voorbeeld:
 spark.read.json("s3a://warehouse/landing/file.json")
 ```
 
+**Landingzone vs Iceberg/Polaris**
+
+- Landingzone lezen: `s3a://...` (Hadoop S3A)
+- Iceberg/Polaris warehouse: `s3://...` met `S3FileIO` (iceberg-aws-bundle)
+- Zie je geen `polaris` in `SHOW CATALOGS`? Herstart de kernel of hercreëer de Jupyter service.
+
 ---
 
 ## Python version alignment
