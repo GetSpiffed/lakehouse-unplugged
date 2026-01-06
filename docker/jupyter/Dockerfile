@@ -1,21 +1,15 @@
 ARG BASE_IMAGE=lakehouse-unplugged-spark-base:latest
 FROM ${BASE_IMAGE}
-# ... verdere configuratie
 
-# # Dependencies
-# RUN apt-get update -qq && \
-#     apt-get install -y --no-install-recommends \
-#         curl \
-#         openjdk-21-jre-headless \
-#         && rm -rf /var/lib/apt/lists/*
+# Zorg dat de Spark distro uit spark-base gebruikt wordt
+ENV SPARK_HOME=/opt/spark
+ENV PATH="${SPARK_HOME}/bin:${PATH}"
 
-# Install Jupyter
-RUN pip install --no-cache-dir notebook pyspark==3.5.1
+# Install Jupyter (geen pip pyspark installeren!)
+RUN pip install --no-cache-dir notebook jupyterlab ipykernel
 
-# # Iceberg runtime
-# RUN mkdir -p /opt/spark/jars && \
-#     curl -L -o /opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.6.0.jar \
-#         https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.6.0/iceberg-spark-runtime-3.5_2.12-1.6.0.jar
+# (optioneel) registreer een kernel naam
+RUN python -m ipykernel install --name lakehouse --display-name "Lakehouse (Spark Driver)" --sys-prefix
 
 # Jupyter config
 RUN mkdir -p /root/.jupyter && \

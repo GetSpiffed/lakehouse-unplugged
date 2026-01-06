@@ -199,6 +199,54 @@ services:
       - lakehouse
 
   # ======================================================================
+  # 📓 Jupyter (Spark driver) - notebooks tegen het Spark cluster
+  # ======================================================================
+  jupyter:
+    build:
+      context: ./docker/jupyter
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: lakehouse-unplugged-spark-base:latest
+    image: lakehouse-unplugged-jupyter:latest
+    depends_on:
+      spark-base-builder:
+        condition: service_completed_successfully
+      spark-master:
+        condition: service_started
+      spark-worker:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      polaris:
+        condition: service_healthy
+    environment:
+      # Zorg dat executors de driver terug kunnen bereiken
+      SPARK_DRIVER_HOST: jupyter
+      SPARK_MASTER: spark://spark-master:7077
+
+      # MinIO
+      S3_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+
+      # Polaris
+      POLARIS_URI: http://polaris:8181/api/catalog
+      POLARIS_OAUTH2_TOKEN_URL: http://polaris:8181/api/catalog/v1/oauth/tokens
+      POLARIS_SCOPE: PRINCIPAL_ROLE:ALL
+      POLARIS_CLIENT_ID: admin
+      POLARIS_CLIENT_SECRET: password
+
+      # Iceberg warehouse pad (data files)
+      ICEBERG_WAREHOUSE: s3a://warehouse/iceberg
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    networks:
+      - lakehouse
+ 
+  # ======================================================================
   # 💻 Dev Container (VS Code Remote)
   # ======================================================================
   dev:
