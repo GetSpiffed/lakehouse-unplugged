@@ -20,15 +20,11 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # -------------------------------------------------------------------
-# 🐍 Python deps (driver-side)
-# - pyspark: Python client/driver (connect naar spark://spark-master:7077)
+# 🐍 Python deps
 # - dbt + PyHive voor thrift-server later
 # -------------------------------------------------------------------
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-        ipykernel \
-        jupyterlab \
-        pyspark==3.5.1 \
         dbt-core==1.8.6 \
         dbt-spark[PyHive]==1.8.0 \
         pandas \
@@ -36,31 +32,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
     rm -rf /root/.cache/pip
 
 # -------------------------------------------------------------------
-# ✅ Pre-register global Jupyter kernel
-# -------------------------------------------------------------------
-RUN python3 -m ipykernel install \
-        --name lakehouse-unplugged \
-        --display-name "Python (Lakehouse-Unplugged)" \
-        --prefix=/usr/local
-
-# -------------------------------------------------------------------
-# 🧩 Ensure kernel exists at runtime (for volume overlays)
-# -------------------------------------------------------------------
-RUN echo '#!/bin/bash\n' \
-         'python3 -m ipykernel install --name lakehouse-unplugged --display-name "Python (Lakehouse-Unplugged)" --prefix=/usr/local > /dev/null 2>&1 || true\n' \
-         'exec "$@"' > /usr/local/bin/ensure-kernel.sh && chmod +x /usr/local/bin/ensure-kernel.sh
-
-# -------------------------------------------------------------------
-# 📌 Defaults: remote Spark
-# (je notebook kan dit overrulen, maar dit helpt)
-# -------------------------------------------------------------------
-ENV SPARK_MASTER=spark://spark-master:7077
-ENV PYSPARK_PYTHON=python3
-ENV PYSPARK_DRIVER_PYTHON=python3
-
-# -------------------------------------------------------------------
 # 📂 Working directory
 # -------------------------------------------------------------------
 WORKDIR /workspace
-
-ENTRYPOINT ["/usr/local/bin/ensure-kernel.sh"]

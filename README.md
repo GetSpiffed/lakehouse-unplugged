@@ -199,6 +199,16 @@ cd lakehouse-unplugged
 docker compose up -d --build
 ```
 
+## Notebooks
+
+Notebooks draaien via de **jupyter** service (niet via de dev container).
+
+```bash
+docker compose up -d jupyter
+```
+
+Open: http://localhost:8888
+
 ### Polaris bootstrap validatie
 
 ```bash

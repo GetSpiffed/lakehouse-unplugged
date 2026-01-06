@@ -9,10 +9,6 @@
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
   ],
 
-  "containerEnv": {
-    "PYSPARK_SUBMIT_ARGS": "--jars /opt/spark/jars/* pyspark-shell"
-  },
-
   "remoteEnv": {
     "DOCKER_HOST": "unix:///var/run/docker.sock",
     "SPARK_MASTER": "spark://spark-master:7077",
@@ -27,18 +23,13 @@
     "vscode": {
       "extensions": [
         "ms-python.python",
-        "ms-toolsai.jupyter",
         "innoverio.vscode-dbt-power-user",
         "ms-azuretools.vscode-docker",
         "ms-python.vscode-pylance",
         "mtxr.sqltools"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python3",
-        "jupyter.jupyterServerType": "local",
-        "jupyter.kernelPickerType": "OnlyOne",
-        "jupyter.defaultKernel": "Python (Lakehouse-Unplugged)",
-        "jupyter.startupTimeout": 60000
+        "python.defaultInterpreterPath": "/usr/local/bin/python3"
       }
     }
   },
@@ -51,6 +42,6 @@
   },
 
   "postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh",
-  "postStartCommand": "bash ${containerWorkspaceFolder}/.devcontainer/init_kernel.sh && bash ${containerWorkspaceFolder}/.devcontainer/verify.sh",
+  "postStartCommand": "bash ${containerWorkspaceFolder}/.devcontainer/verify.sh",
   "shutdownAction": "stopCompose"
 }

@@ -217,6 +217,8 @@ services:
         condition: service_started
       minio:
         condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
       polaris:
         condition: service_healthy
     environment:
@@ -274,7 +276,6 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       POLARIS_URI: http://polaris:8181
       DBT_PROFILES_DIR: /workspace/dbt
-      SPARK_DRIVER_HOST: lakehouse-unplugged-dev  
   
     volumes:
       - .:/workspace
