@@ -126,8 +126,14 @@ echo "----------------------------------------------------"
 echo "🎉 Lakehouse Unplugged dev setup complete."
 echo ""
 echo "📦 Tooling:"
-dbt --version | head -n 3 || true
-python3 -c "import pyspark; print('PySpark', pyspark.__version__)" || true
+dbt --version | head -n 1 | sed 's/^/• /' || true
+
+if python3 -c "import pyspark" >/dev/null 2>&1; then
+  python3 -c "import pyspark; print('PySpark', pyspark.__version__)"
+else
+  echo "• PySpark: not available (OK – notebooks run in the jupyter service)"
+fi
+
 echo ""
 echo "💡 Available helpers:"
 echo "   check_spark    # Spark connectivity (if spark-sql installed)"
