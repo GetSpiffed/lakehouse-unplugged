@@ -5,6 +5,7 @@ MODE="${SPARK_CATALOG_MODE:-filesystem}"
 CONF_DIR="/opt/spark/conf"
 
 echo "▶ Spark catalog mode: ${MODE}"
+echo "python versions: $(python3 --version)"
 
 case "$MODE" in
   polaris|filesystem) ;;
