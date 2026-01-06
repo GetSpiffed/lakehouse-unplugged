@@ -130,6 +130,17 @@ SPARK_CATALOG_MODE=filesystem   # fallback (direct filesystem)
 
 ---
 
+## Python version alignment
+
+Spark executors en drivers gebruiken Python 3.11 via `/opt/py311`.
+
+```bash
+docker compose exec spark-worker bash -lc "/opt/py311/bin/python --version"
+docker compose exec spark-master bash -lc "echo $PYSPARK_PYTHON"
+```
+
+---
+
 ## Polaris Spark check
 
 Voer in een PySpark notebook/JupyterLab:
