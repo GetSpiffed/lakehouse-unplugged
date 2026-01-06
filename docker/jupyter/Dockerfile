@@ -21,4 +21,4 @@ RUN mkdir -p /root/.jupyter && \
 WORKDIR /workspace
 
 EXPOSE 8888
-CMD ["jupyter", "notebook", "--allow-root"]
+CMD ["bash", "-lc", "echo \"SPARK_HOME=$SPARK_HOME\" && spark-submit --version && jupyter notebook --allow-root"]
