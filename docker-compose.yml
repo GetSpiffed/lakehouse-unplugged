@@ -241,7 +241,7 @@ services:
       POLARIS_CLIENT_SECRET: password
 
       # Iceberg warehouse pad (data files)
-      ICEBERG_WAREHOUSE: s3a://warehouse/iceberg
+      ICEBERG_WAREHOUSE: s3://warehouse/iceberg
     ports:
       - "8888:8888"
     volumes:
