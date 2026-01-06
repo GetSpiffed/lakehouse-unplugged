@@ -35,7 +35,7 @@ echo "🔐 Verifying required environment variables..."
 
 # Polaris creds are optional for now (used later by Trino / tooling)
 if [ -n "${POLARIS_CLIENT_ID:-}" ]; then
-  echo "ℹ️ Polaris credentials detected (not used by Spark)."
+  echo "ℹ️ Polaris credentials detected (not used by dev setup script)."
 fi
 
 # --------------------------------------------------------------------
@@ -75,9 +75,12 @@ if ! grep -q "Lakehouse-Unplugged environment" /root/.bashrc 2>/dev/null; then
 # Lakehouse-Unplugged environment
 # ------------------------------------------------------------
 export DBT_PROFILES_DIR=/workspace/dbt
-export PYSPARK_PYTHON=python3
-export SPARK_HOME=/opt/spark
-export PATH=$PATH:$SPARK_HOME/bin
+
+# Only set Spark env if Spark is actually present in this container
+if [ -x /opt/spark/bin/spark-submit ]; then
+  export SPARK_HOME=/opt/spark
+  export PATH=$PATH:$SPARK_HOME/bin
+fi
 
 check_polaris() {
   echo "🔍 Polaris health:"
@@ -85,26 +88,35 @@ check_polaris() {
 }
 
 check_spark() {
-  spark-sql -e "SHOW DATABASES;"
+  if command -v spark-sql >/dev/null 2>&1; then
+    spark-sql -e "SHOW DATABASES;"
+  else
+    echo "ℹ️ spark-sql not available in this container."
+    echo "   Use the jupyter service (notebooks) or spark-master for Spark checks."
+  fi
 }
 ENVVARS
 fi
 
 # --------------------------------------------------------------------
-# 5. Spark filesystem catalog smoke test
+# 5. Spark smoke test (optional; skip if spark-sql not present)
 # --------------------------------------------------------------------
-echo "⚡ Running Spark filesystem catalog smoke test..."
+echo "⚡ Spark smoke test (optional)..."
 
-if timeout 45s spark-sql -S -e "SHOW DATABASES;" >/dev/null; then
-  echo "✔ Spark filesystem catalog reachable."
-else
-  STATUS=$?
-  if [ $STATUS -eq 124 ]; then
-    echo "❌ Spark catalog check timed out (45s)."
+if command -v spark-sql >/dev/null 2>&1; then
+  if timeout 45s spark-sql -S -e "SHOW DATABASES;" >/dev/null; then
+    echo "✔ Spark reachable from dev container."
   else
-    echo "❌ Spark catalog check failed with exit code ${STATUS}."
+    STATUS=$?
+    if [ $STATUS -eq 124 ]; then
+      echo "❌ Spark catalog check timed out (45s)."
+    else
+      echo "❌ Spark catalog check failed with exit code ${STATUS}."
+    fi
+    exit $STATUS
   fi
-  exit $STATUS
+else
+  echo "ℹ️ Skipping Spark smoke test: spark-sql not installed in dev container."
 fi
 
 # --------------------------------------------------------------------
@@ -118,7 +130,7 @@ dbt --version | head -n 3 || true
 python3 -c "import pyspark; print('PySpark', pyspark.__version__)" || true
 echo ""
 echo "💡 Available helpers:"
-echo "   check_spark    # Spark connectivity"
+echo "   check_spark    # Spark connectivity (if spark-sql installed)"
 echo "   check_polaris  # Polaris health"
 echo ""
 echo "📁 dbt profile:"

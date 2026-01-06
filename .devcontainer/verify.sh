@@ -46,19 +46,24 @@ fi
 echo ""
 
 # --------------------------------------------------------------------
-# 4. Spark filesystem catalog smoke test
+# 4. Optional: Spark SQL smoke test (only if spark-sql exists)
 # --------------------------------------------------------------------
-echo "🧪 Running Spark filesystem catalog smoke test..."
-if timeout 45s spark-sql -S -e "SHOW DATABASES;" >/dev/null; then
-  echo "✔ Spark SQL is operational."
-else
-  STATUS=$?
-  if [ $STATUS -eq 124 ]; then
-    echo "❌ Spark SQL check timed out (45s)."
+echo "🧪 Spark SQL smoke test (optional)..."
+if command -v spark-sql >/dev/null 2>&1; then
+  if timeout 45s spark-sql -S -e "SHOW DATABASES;" >/dev/null; then
+    echo "✔ Spark SQL is operational."
   else
-    echo "❌ Spark SQL check failed with exit code ${STATUS}."
+    STATUS=$?
+    if [ $STATUS -eq 124 ]; then
+      echo "❌ Spark SQL check timed out (45s)."
+    else
+      echo "❌ Spark SQL check failed with exit code ${STATUS}."
+    fi
+    exit 1
   fi
-  exit 1
+else
+  echo "ℹ️ Skipping Spark SQL check: spark-sql not available in dev container."
+  echo "   Use the jupyter service (notebooks) or spark-master for Spark checks."
 fi
 echo ""
 
@@ -79,7 +84,7 @@ else
   echo "• dbt: not found"
 fi
 
-if python3 -c "import pyspark" >/dev/null 2>&1; then
+if command -v python3 >/dev/null 2>&1 && python3 -c "import pyspark" >/dev/null 2>&1; then
   PYSPARK_VER=$(python3 -c 'import pyspark; print(pyspark.__version__)')
   echo "• PySpark: ${PYSPARK_VER}"
 else
