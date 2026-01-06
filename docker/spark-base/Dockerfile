@@ -9,6 +9,7 @@ ARG SCALA_VERSION=2.12
 ARG HADOOP_VERSION=3.3.4
 ARG AWS_SDK_VERSION=1.12.783
 ARG POLARIS_SPARK_VERSION=1.2.0-incubating
+ARG PYTHON_VERSION=3.11
 
 USER root
 
@@ -17,8 +18,15 @@ USER root
 # ======================================================================
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
-      python3 python3-pip curl build-essential openjdk-17-jdk jq && \
+      curl build-essential openjdk-17-jdk jq \
+      python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python3-pip && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
+    python3 --version && \
     rm -rf /var/lib/apt/lists/*
+
+# Zorg dat executors/driver standaard dezelfde minor gebruiken (kan overschreven worden via spark-defaults.conf)
+ENV PYSPARK_PYTHON=/usr/bin/python3 \
+    PYSPARK_DRIVER_PYTHON=/usr/bin/python3
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
