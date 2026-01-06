@@ -31,16 +31,19 @@ services:
     environment:
       MC_CONFIG_DIR: /tmp/.mc
     entrypoint: ["sh","-c"]
-    command:
-      - >
-        until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
-        mc mb -p local/warehouse || true;
-        mc ls local || true;
-        echo minio-setup done
+    command: >
+      set -e;
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb -p local/warehouse || true;
+      mc mb -p local/warehouse/landing || true;
+      # Maak het Iceberg warehouse prefix "echt" (S3 heeft geen folders zonder object)
+      printf "" | mc pipe local/warehouse/iceberg/.keep >/dev/null;
+      mc ls local/warehouse || true;
+      echo minio-setup done
     restart: "no"
     networks:
       - lakehouse
-  
+
 
   # ======================================================================
   # 🔭 Polaris
