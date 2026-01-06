@@ -130,6 +130,21 @@ SPARK_CATALOG_MODE=filesystem   # fallback (direct filesystem)
 
 ---
 
+## Spark S3A support (MinIO)
+
+- Hadoop-versie wordt tijdens de image build automatisch gedetecteerd (via `spark-submit --version`).
+- De build voegt de volgende JARs toe aan `/opt/spark/jars`:
+  - `hadoop-aws-${HADOOP_VERSION}.jar`
+  - `aws-java-sdk-bundle-1.12.x.jar`
+
+Voorbeeld:
+
+```python
+spark.read.json("s3a://warehouse/landing/file.json")
+```
+
+---
+
 ## Python version alignment
 
 Spark executors en drivers gebruiken Python 3.11 via `/opt/py311`.
