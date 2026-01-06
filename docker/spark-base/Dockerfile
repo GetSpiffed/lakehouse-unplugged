@@ -9,7 +9,6 @@ ARG SCALA_VERSION=2.12
 ARG HADOOP_VERSION=3.3.4
 ARG AWS_SDK_VERSION=1.12.783
 ARG POLARIS_SPARK_VERSION=1.2.0-incubating
-ARG PYTHON_VERSION=3.11
 
 USER root
 
@@ -19,38 +18,26 @@ USER root
 RUN set -eux; \
     apt-get update -qq; \
     apt-get install -y --no-install-recommends \
-      curl build-essential openjdk-17-jdk jq gnupg; \
-    if ! apt-get install -y --no-install-recommends \
-      python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python${PYTHON_VERSION}-venv python3-pip; then \
-      apt-get install -y --no-install-recommends software-properties-common; \
-      add-apt-repository ppa:deadsnakes/ppa; \
-      apt-get update -qq; \
-      apt-get install -y --no-install-recommends \
-        python${PYTHON_VERSION} python${PYTHON_VERSION}-distutils python${PYTHON_VERSION}-venv python3-pip; \
-    fi; \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1; \
-    update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION}; \
-    update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1; \
-    update-alternatives --set python /usr/bin/python${PYTHON_VERSION}; \
-    python3 --version; \
-    python${PYTHON_VERSION} -m pip install --upgrade pip; \
+      curl build-essential openjdk-17-jdk jq ca-certificates; \
     rm -rf /var/lib/apt/lists/*
 
-# Zorg dat executors/driver standaard dezelfde minor gebruiken (kan overschreven worden via spark-defaults.conf)
-ENV PYSPARK_PYTHON=/usr/bin/python3 \
-    PYSPARK_DRIVER_PYTHON=/usr/bin/python3
-
-RUN python${PYTHON_VERSION} -m pip install --no-cache-dir --upgrade pip && \
-    python${PYTHON_VERSION} -m pip install --no-cache-dir \
-      pyspark==${SPARK_VERSION} \
+RUN set -eux; \
+    curl -L https://micro.mamba.pm/api/micromamba/linux-64/latest | \
+      tar -xvj -C /usr/local/bin --strip-components=1 bin/micromamba; \
+    /usr/local/bin/micromamba create -y -p /opt/py311 python=3.11 pip; \
+    /opt/py311/bin/python --version; \
+    /opt/py311/bin/pip install --no-cache-dir --upgrade pip; \
+    /opt/py311/bin/pip install --no-cache-dir \
       pyiceberg \
       boto3 \
       s3fs \
-      dbt-core==1.7.6 \
-      "dbt-spark[PyHive]==1.7.1" \
-      jupyterlab \
-      ipykernel \
-      pandas
+      pandas; \
+    /usr/local/bin/micromamba clean -a -y
+
+# Zorg dat executors/driver standaard dezelfde minor gebruiken (kan overschreven worden via spark-defaults.conf)
+ENV PYSPARK_PYTHON=/opt/py311/bin/python \
+    PYSPARK_DRIVER_PYTHON=/opt/py311/bin/python \
+    PATH="/opt/py311/bin:${PATH}"
 
 # ======================================================================
 # Spark JARs: Iceberg + AWS + Hadoop S3A
@@ -87,7 +74,7 @@ ENTRYPOINT ["/entrypoint.sh"]
 # ======================================================================
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
     SPARK_HOME=/opt/spark \
-    PATH="/opt/spark/bin:/opt/spark/sbin:${PATH}"
+    PATH="/opt/py311/bin:/opt/spark/bin:/opt/spark/sbin:${PATH}"
 
 WORKDIR /workspace
 CMD ["bash"]

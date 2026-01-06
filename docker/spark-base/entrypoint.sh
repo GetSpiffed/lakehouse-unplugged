@@ -4,8 +4,12 @@ set -euo pipefail
 MODE="${SPARK_CATALOG_MODE:-filesystem}"
 CONF_DIR="/opt/spark/conf"
 
+: "${PYSPARK_PYTHON:=/opt/py311/bin/python}"
+: "${PYSPARK_DRIVER_PYTHON:=/opt/py311/bin/python}"
+export PYSPARK_PYTHON PYSPARK_DRIVER_PYTHON
+
 echo "▶ Spark catalog mode: ${MODE}"
-echo "python versions: $(python3 --version)"
+echo "python versions: $(${PYSPARK_PYTHON} --version)"
 
 case "$MODE" in
   polaris|filesystem) ;;
