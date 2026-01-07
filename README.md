@@ -205,6 +205,14 @@ cd lakehouse-unplugged
 docker compose up -d --build
 ```
 
+## dbt quickstart
+
+```bash
+docker compose up -d --build
+docker compose exec dev bash -lc "scripts/dbt_check.sh"
+docker compose exec dev bash -lc "cd dbt && dbt run -s smoke && dbt test -s smoke"
+```
+
 ## Notebooks
 
 Notebooks draaien via de **jupyter** service (niet via de dev container).
@@ -260,9 +268,10 @@ docker compose down -v
 - dbt-modellen van bronze naar gold
 
 ```bash
-docker compose run --rm dbt debug
-docker compose run --rm dbt run
-docker compose run --rm dbt test
+docker compose exec dev bash -lc "cd dbt && dbt debug"
+docker compose exec dev bash -lc "cd dbt && dbt ls"
+docker compose exec dev bash -lc "cd dbt && dbt run -s +smoke"
+docker compose exec dev bash -lc "cd dbt && dbt test -s smoke"
 ```
 
 ---

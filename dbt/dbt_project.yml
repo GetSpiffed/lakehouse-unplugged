@@ -30,3 +30,6 @@ models:
         +materialized: incremental
         +incremental_strategy: merge
         +unique_key: event_id
+
+    smoke:
+      +schema: "{{ env_var('DBT_SCHEMA', 'dbt_demo') }}"
