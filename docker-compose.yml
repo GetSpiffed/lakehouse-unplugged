@@ -226,6 +226,8 @@ services:
         condition: service_completed_successfully
       polaris:
         condition: service_healthy
+    env_file:
+      - ./.env
     environment:
       # Zorg dat executors de driver terug kunnen bereiken
       SPARK_DRIVER_HOST: jupyter
