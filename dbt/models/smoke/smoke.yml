@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: smoke_seed_base
+    description: "Seed table created via dbt for Iceberg smoke testing."
+    columns:
+      - name: id
+        tests:
+          - not_null
+          - unique
+  - name: smoke_iceberg_write
+    description: "Downstream Iceberg table written by dbt for smoke testing."
