@@ -167,23 +167,15 @@ services:
         condition: service_started
       minio-setup:
         condition: service_completed_successfully
+      polaris:
+        condition: service_healthy
     env_file:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
-    command: >
-      /opt/spark/bin/spark-submit
-      --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
-      --master spark://spark-master:7077
-      --conf spark.app.name=ThriftServer
-      --conf spark.cores.max=2
-      --conf spark.executor.cores=1
-      --conf spark.executor.instances=2
-      --conf spark.executor.memory=1g
-      --conf spark.driver.cores=1
-      --conf spark.driver.memory=768m
-      --conf spark.sql.shuffle.partitions=8
-      --conf spark.sql.adaptive.enabled=true
+    command: /opt/spark/bin/bootstrap.sh
+    volumes:
+      - ./docker/thrift-server/bootstrap.sh:/opt/spark/bin/bootstrap.sh:ro
     ports:
       - "10000:10000"
     networks:
