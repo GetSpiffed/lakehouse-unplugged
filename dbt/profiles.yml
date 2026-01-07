@@ -5,7 +5,7 @@ lakehouse_unplugged:
       method: thrift
 
       host: "{{ env_var('DBT_SPARK_HOST', 'thrift-server') }}"
-      port: "{{ env_var('DBT_SPARK_PORT', '10000') }}"
+      port: 10000
 
       # Polaris Iceberg catalog + namespace
       catalog: "{{ env_var('DBT_CATALOG', 'polaris') }}"
@@ -16,8 +16,9 @@ lakehouse_unplugged:
       threads: 4
 
       # Verbinding / retry-instellingen
-      connect_retries: 5
-      connect_timeout: 60
-      retry_all: true
+      retry_all: false
+      connect_retries: 1
+      connect_timeout: 10
+
 
   target: dev
