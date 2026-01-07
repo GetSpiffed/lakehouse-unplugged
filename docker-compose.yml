@@ -7,9 +7,8 @@ services:
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+    env_file:
+      - ./.env
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -28,12 +27,14 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    env_file:
+      - ./.env
     environment:
       MC_CONFIG_DIR: /tmp/.mc
     entrypoint: ["sh","-c"]
     command: >
       set -e;
-      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 1; done;
       mc mb -p local/warehouse || true;
       mc mb -p local/warehouse/landing || true;
       # Maak het Iceberg warehouse prefix "echt" (S3 heeft geen folders zonder object)
@@ -67,14 +68,12 @@ services:
     environment:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
-      AWS_REGION: dummy
+      AWS_REGION: dummy # Polaris expects a region but MinIO ignores it; keep dummy to preserve existing behavior.
       AWS_ENDPOINT_URL_S3: http://minio:9000
       POLARIS_CATALOG_WAREHOUSE: s3://warehouse
 
       POLARIS_BOOTSTRAP_CREDENTIALS: "POLARIS,admin,password"
       polaris.realm-context.realms: "POLARIS"
-
-      POLARIS_OAUTH2_TOKEN_URL: http://polaris:8181/api/catalog/v1/oauth/tokens
       POLARIS_OAUTH2_CLIENT_ID: ${POLARIS_CLIENT_ID}
       POLARIS_OAUTH2_CLIENT_SECRET: ${POLARIS_CLIENT_SECRET}
 
@@ -134,8 +133,6 @@ services:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
-      POLARIS_CLIENT_ID: admin
-      POLARIS_CLIENT_SECRET: password
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
       --host spark-master --port 7077 --webui-port 8080
@@ -153,8 +150,6 @@ services:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
-      POLARIS_CLIENT_ID: admin
-      POLARIS_CLIENT_SECRET: password
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
       spark://spark-master:7077 --webui-port 8081
@@ -176,8 +171,6 @@ services:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
-      POLARIS_CLIENT_ID: admin
-      POLARIS_CLIENT_SECRET: password
     command: >
       /opt/spark/bin/spark-submit
       --class org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
@@ -233,21 +226,6 @@ services:
       SPARK_DRIVER_HOST: jupyter
       SPARK_MASTER: spark://spark-master:7077
 
-      # MinIO
-      S3_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-
-      # Polaris
-      POLARIS_URI: http://polaris:8181/api/catalog
-      POLARIS_OAUTH2_TOKEN_URL: http://polaris:8181/api/catalog/v1/oauth/tokens
-      POLARIS_SCOPE: PRINCIPAL_ROLE:ALL
-      POLARIS_CLIENT_ID: admin
-      POLARIS_CLIENT_SECRET: password
-      
-      # Iceberg warehouse pad (data files)
-      POLARIS_WAREHOUSE: polaris
-
     ports:
       - "8888:8888"
     volumes:
@@ -278,11 +256,12 @@ services:
       thrift-server:
         condition: service_started
   
+    env_file:
+      - ./.env
     environment:
       JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
       SPARK_MASTER: spark://spark-master:7077
       MINIO_ENDPOINT: http://minio:9000
-      POLARIS_URI: http://polaris:8181/api/catalog
       DBT_PROFILES_DIR: /workspace/dbt
   
     volumes:
