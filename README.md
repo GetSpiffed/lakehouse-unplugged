@@ -213,6 +213,8 @@ docker compose exec dev bash -lc "scripts/dbt_check.sh"
 docker compose exec dev bash -lc "cd dbt && dbt run -s smoke && dbt test -s smoke"
 ```
 
+De Thrift Server bootstrapt automatisch `polaris.default`, dus dbt kan direct verbinden zonder handmatige namespace-setup.
+
 ## Notebooks
 
 Notebooks draaien via de **jupyter** service (niet via de dev container).
