@@ -242,9 +242,10 @@ services:
       POLARIS_SCOPE: PRINCIPAL_ROLE:ALL
       POLARIS_CLIENT_ID: admin
       POLARIS_CLIENT_SECRET: password
-
+      
       # Iceberg warehouse pad (data files)
-      ICEBERG_WAREHOUSE: s3://warehouse/polaris
+      POLARIS_WAREHOUSE: polaris
+
     ports:
       - "8888:8888"
     volumes:
