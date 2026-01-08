@@ -40,6 +40,9 @@
       "upgradePackages": true
     }
   },
+  "containerEnv": {
+    "DBT_PROFILES_DIR": "/workspace/dbt"
+  },
 
   "postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh",
   "postStartCommand": "bash ${containerWorkspaceFolder}/.devcontainer/verify.sh",

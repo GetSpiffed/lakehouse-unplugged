@@ -4,8 +4,12 @@ profile: lakehouse_unplugged
 
 models:
   lakehouse_unplugged:
+    demo:
+      +schema: "{{ env_var('DBT_SCHEMA', 'dbt_demo') }}"
+      +materialized: table
+
     silver:
-      +schema: silver
+      +schema: "{{ env_var('DBT_SILVER_SCHEMA', 'silver') }}"
       +on_schema_change: sync_all_columns
 
       md:
@@ -17,7 +21,7 @@ models:
         +materialized: table
 
     gold:
-      +schema: gold
+      +schema: "{{ env_var('DBT_GOLD_SCHEMA', 'gold') }}"
       +on_schema_change: sync_all_columns
 
       dim:
@@ -30,3 +34,4 @@ models:
 
     smoke:
       +schema: "{{ env_var('DBT_SCHEMA', 'dbt_demo') }}"
+      +materialized: view
