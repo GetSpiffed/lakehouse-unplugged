@@ -206,23 +206,24 @@ docker compose up -d --build
 
 ```bash
 docker compose up -d --build
-docker compose exec dev bash -lc "scripts/dbt_check.sh"
-docker compose exec dev bash -lc "cd dbt && dbt run -s smoke && dbt test -s smoke"
+docker compose run --rm dbt debug
+docker compose run --rm dbt run -s smoke
+docker compose run --rm dbt test -s smoke
 ```
 
 The Thrift Server bootstraps `polaris.default`, so dbt can connect without manual namespace setup.
 
 ### dbt bronze → silver → gold
 
-Run the following from the dbt project directory (e.g., `docker compose exec dev bash -lc "cd dbt"`):
+Run the following via the dbt container:
 
 ```bash
-dbt run  --select silver --full-refresh
-dbt test --select silver --indirect-selection=empty
+docker compose run --rm dbt run  --select silver --full-refresh
+docker compose run --rm dbt test --select silver --indirect-selection=empty
 
 
-dbt run  --select gold --full-refresh
-dbt test --select gold
+docker compose run --rm dbt run  --select gold --full-refresh
+docker compose run --rm dbt test --select gold
 ```
 
 ## Notebooks
@@ -280,10 +281,10 @@ docker compose down -v
 - dbt models from bronze to gold
 
 ```bash
-docker compose exec dev bash -lc "cd dbt && dbt debug"
-docker compose exec dev bash -lc "cd dbt && dbt ls"
-docker compose exec dev bash -lc "cd dbt && dbt run -s +smoke"
-docker compose exec dev bash -lc "cd dbt && dbt test -s smoke"
+docker compose run --rm dbt debug
+docker compose run --rm dbt ls
+docker compose run --rm dbt run -s +smoke
+docker compose run --rm dbt test -s smoke
 ```
 
 ---
@@ -315,6 +316,37 @@ Trino is intentionally **read-only** in this setup.
 - DuckDB for local analytics and CI checks
 
 ---
+
+## Run dbt in container
+
+dbt runs in its own container; the devcontainer no longer includes dbt.
+
+```bash
+docker compose run --rm dbt debug
+docker compose run --rm dbt run
+docker compose run --rm dbt test
+```
+
+Smoke test (WSL or Git Bash):
+
+```bash
+./scripts/dbt_smoke.sh
+```
+
+PowerShell alternative:
+
+```powershell
+docker compose run --rm dbt debug
+docker compose run --rm dbt parse
+```
+
+## Start Airflow
+
+```bash
+docker compose up -d airflow-db airflow-init airflow-webserver airflow-scheduler airflow-triggerer
+```
+
+Airflow UI: http://localhost:8089 (admin/admin)
 
 ## Project structure
 
