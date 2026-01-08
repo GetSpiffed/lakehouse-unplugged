@@ -133,6 +133,9 @@ services:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
       --host spark-master --port 7077 --webui-port 8080
@@ -150,6 +153,9 @@ services:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
       spark://spark-master:7077 --webui-port 8081
@@ -173,6 +179,9 @@ services:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
     command: /opt/spark/bin/bootstrap.sh
     volumes:
       - ./docker/thrift-server/bootstrap.sh:/opt/spark/bin/bootstrap.sh:ro
@@ -229,6 +238,9 @@ services:
       # Zorg dat executors de driver terug kunnen bereiken
       SPARK_DRIVER_HOST: jupyter
       SPARK_MASTER: spark://spark-master:7077
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
 
     ports:
       - "8888:8888"
