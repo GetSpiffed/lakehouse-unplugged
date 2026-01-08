@@ -2,9 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DBT_PROJECT_DIR="${DBT_PROJECT_DIR:-${ROOT_DIR}/dbt}"
-DBT_PROFILES_DIR="${DBT_PROFILES_DIR:-${ROOT_DIR}/dbt}"
-
 DBT_SPARK_HOST="${DBT_SPARK_HOST:-thrift-server}"
 DBT_SPARK_PORT="${DBT_SPARK_PORT:-10000}"
 DBT_CATALOG="${DBT_CATALOG:-polaris}"
@@ -67,8 +64,6 @@ wait_for_port "Spark Thrift Server" "${DBT_SPARK_HOST}" "${DBT_SPARK_PORT}"
 cat <<INFO
 
 🔎 dbt / Spark connection details
-- DBT_PROFILES_DIR=${DBT_PROFILES_DIR}
-- DBT_PROJECT_DIR=${DBT_PROJECT_DIR}
 - host=${DBT_SPARK_HOST}
 - port=${DBT_SPARK_PORT}
 - catalog=${DBT_CATALOG}
@@ -79,15 +74,10 @@ cat <<INFO
 - s3_endpoint=${S3_ENDPOINT}
 INFO
 
-echo "\n🔧 Sanity checks"
-dbt --version
-python - <<'PY'
-import importlib
-modules = ["dbt", "pyhive"]
-for name in modules:
-    importlib.import_module(name)
-print("✅ Python imports OK:", ", ".join(modules))
-PY
-
-echo "\n🔌 dbt debug"
-dbt debug --profiles-dir "${DBT_PROFILES_DIR}" --project-dir "${DBT_PROJECT_DIR}"
+echo "\n🔌 dbt debug (dbt container)"
+docker compose run --rm \
+  -e DBT_SPARK_HOST="${DBT_SPARK_HOST}" \
+  -e DBT_SPARK_PORT="${DBT_SPARK_PORT}" \
+  -e DBT_CATALOG="${DBT_CATALOG}" \
+  -e DBT_SCHEMA="${DBT_SCHEMA}" \
+  dbt debug

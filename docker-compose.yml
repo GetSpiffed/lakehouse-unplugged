@@ -281,7 +281,6 @@ services:
       JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
       SPARK_MASTER: spark://spark-master:7077
       MINIO_ENDPOINT: http://minio:9000
-      DBT_PROFILES_DIR: /workspace/dbt
   
     volumes:
       - .:/workspace
@@ -291,9 +290,122 @@ services:
     networks:
       - lakehouse
 
+  # ======================================================================
+  # 🧰 dbt (Spark Thrift)
+  # ======================================================================
+  dbt:
+    build:
+      context: ./docker/dbt
+    container_name: dbt
+    depends_on:
+      thrift-server:
+        condition: service_started
+    environment:
+      DBT_PROFILES_DIR: /usr/app/project
+    volumes:
+      - ./dbt:/usr/app/project
+    working_dir: /usr/app/project
+    networks:
+      - lakehouse
+
+  # ======================================================================
+  # 🌬️ Airflow + Cosmos
+  # ======================================================================
+  airflow-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db-data:/var/lib/postgresql/data
+    networks:
+      - lakehouse
+
+  airflow-init:
+    build:
+      context: ./docker/airflow
+    image: lakehouse-unplugged-airflow:latest
+    depends_on:
+      airflow-db:
+        condition: service_started
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: >
+      bash -c "airflow db migrate &&
+      airflow users create
+      --username admin
+      --password admin
+      --firstname admin
+      --lastname admin
+      --role Admin
+      --email admin@example.com"
+    networks:
+      - lakehouse
+
+  airflow-webserver:
+    image: lakehouse-unplugged-airflow:latest
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    ports:
+      - "8089:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./dbt:/opt/airflow/dbt_project:ro
+      - ./dbt:/opt/airflow/dbt:ro
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: webserver
+    networks:
+      - lakehouse
+
+  airflow-scheduler:
+    image: lakehouse-unplugged-airflow:latest
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./dbt:/opt/airflow/dbt_project:ro
+      - ./dbt:/opt/airflow/dbt:ro
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: scheduler
+    networks:
+      - lakehouse
+
+  airflow-triggerer:
+    image: lakehouse-unplugged-airflow:latest
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: triggerer
+    networks:
+      - lakehouse
+
 volumes:
   minio-data:
   trino-data:
+  airflow-db-data:
 
 networks:
   lakehouse:
