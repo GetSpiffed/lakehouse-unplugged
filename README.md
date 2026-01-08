@@ -3,7 +3,7 @@
 Hands-on playground for an **open lakehouse stack** with Apache Spark, Apache Iceberg, MinIO, dbt, Jupyter, Polaris, and Trino.
 The focus is on **understanding how the components fit together**, with a setup that works today and can evolve as the stack matures.
 
-> **Status (2026)**
+> **Project Status (2026)**
 > Spark writes Iceberg tables via the Polaris REST catalog (default).
 > Polaris provides the Iceberg REST catalog and governance layer.
 > dbt is up and running, with models for Silver and Gold.
