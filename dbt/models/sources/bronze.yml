@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: lakehouse_bronze
-    schema: bronze
+    schema: polaris.bronze
     description: "Bronzetabellen uit het Lakehouse."
     tables:
       - name: gekentekendevoertuigen
