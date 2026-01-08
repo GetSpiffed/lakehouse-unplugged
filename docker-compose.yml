@@ -176,6 +176,7 @@ services:
     command: /opt/spark/bin/bootstrap.sh
     volumes:
       - ./docker/thrift-server/bootstrap.sh:/opt/spark/bin/bootstrap.sh:ro
+    restart: unless-stopped
     ports:
       - "10000:10000"
     networks:

@@ -39,7 +39,7 @@ log "🏗️ Ensuring namespace exists: polaris.default"
 /opt/spark/bin/spark-sql --master "$SPARK_MASTER_URL" -e "CREATE NAMESPACE IF NOT EXISTS polaris.default"
 
 log "🚀 Starting Spark Thrift Server"
-exec /opt/spark/sbin/start-thriftserver.sh \
+/opt/spark/sbin/start-thriftserver.sh \
   --master "$SPARK_MASTER_URL" \
   --conf spark.app.name=ThriftServer \
   --conf spark.cores.max=2 \
@@ -52,3 +52,18 @@ exec /opt/spark/sbin/start-thriftserver.sh \
   --conf spark.sql.adaptive.enabled=true \
   --hiveconf hive.server2.authentication=NONE \
   --hiveconf hive.server2.transport.mode=binary
+
+# Thrift Server log file (Spark schrijft 'm hierheen)
+LOG_GLOB="/opt/spark/logs/spark--org.apache.spark.sql.hive.thriftserver.HiveThriftServer2-*.out"
+
+log "📄 Tailing thriftserver logs: ${LOG_GLOB}"
+# Wacht kort tot er een logfile is, dan tailen (foreground)
+for attempt in $(seq 1 30); do
+  ls -1 $LOG_GLOB >/dev/null 2>&1 && break
+  sleep 1
+done
+
+# Als er nog steeds geen logfile is, dump logs dir en blijf draaien
+ls -la /opt/spark/logs || true
+tail -F $LOG_GLOB
+
