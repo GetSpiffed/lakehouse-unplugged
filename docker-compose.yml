@@ -199,10 +199,13 @@ services:
   trino:
     image: trinodb/trino:455
     container_name: trino
+    env_file:
+      - ./.env
     ports:
       - "8088:8080"
     volumes:
       - ./docker/trino/etc:/etc/trino
+      - trino-data:/data/trino
     depends_on:
       - polaris
       - minio
@@ -290,6 +293,7 @@ services:
 
 volumes:
   minio-data:
+  trino-data:
 
 networks:
   lakehouse:
