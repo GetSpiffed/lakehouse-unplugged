@@ -1,52 +1,52 @@
 # Lakehouse Unplugged
 
-Hands-on playground voor een **open lakehouse-stack** met Apache Spark, Apache Iceberg, MinIO, dbt, Jupyter, Polaris en Trino.  
-De focus ligt op **begrijpen hoe de onderdelen samenhangen**, met een setup die vandaag stabiel werkt en tegelijk voorbereid is op wat eraan komt.
+Hands-on playground for an **open lakehouse stack** with Apache Spark, Apache Iceberg, MinIO, dbt, Jupyter, Polaris, and Trino.
+The focus is on **understanding how the components fit together**, with a setup that works today and can evolve as the stack matures.
 
-> **Status (2025)**  
-> Spark schrijft Iceberg-tabellen via een **filesystem/Hadoop catalog** op MinIO (S3A).  
-> Polaris draait mee als **Iceberg REST catalog en governance-laag**, maar wordt door Spark **nog niet** gebruikt voor writes.  
-> Trino gebruikt Polaris wél voor read-only analytics.
+> **Status (2025)**
+> Spark writes Iceberg tables via the **Polaris REST catalog** (default).
+> Polaris provides the **Iceberg REST catalog and governance layer**.
+> Trino uses Polaris for **read-only analytics**.
+> A filesystem/Hadoop fallback is available if needed.
 
 ---
 
-## Wat bouw je hier?
+## What do you build here?
 
-- Docker Compose-stack met:
+- Docker Compose stack with:
   - MinIO
   - Spark (master/worker)
-  - Spark Thrift Server (voor dbt)
+  - Spark Thrift Server (for dbt)
   - Polaris Catalog
   - Trino
   - JupyterLab
   - dbt runner
   - VS Code devcontainer
-- Iceberg-ready object storage op MinIO (`warehouse` bucket automatisch aangemaakt)
-- Voorbeeld notebooks en dbt-modellen (bronze → silver → gold)
-- Feature-flag om Spark later **optioneel** via Polaris REST te laten lopen
+- Iceberg-ready object storage on MinIO (`warehouse` bucket created automatically)
+- Example notebooks and dbt models (bronze → silver → gold)
+- Feature flag to switch Spark between Polaris REST and filesystem mode
 
 ---
 
-## Architectuuroverzicht
+## Architecture overview
 
-Alle services draaien in één Docker-netwerk.
+All services run in a single Docker network.
 
-- **Spark**  
-  - ETL, dbt, data creatie  
-  - Iceberg **filesystem/Hadoop catalog**  
-  - Schrijft direct naar `s3a://warehouse/`
+- **Spark**
+  - ETL, dbt, data creation
+  - Iceberg via **Polaris REST catalog** (default)
+  - Writes to `s3://warehouse/` with Iceberg S3FileIO
 
-- **Polaris**  
-  - Iceberg REST catalog  
-  - Principals, roles, catalog metadata  
-  - Leest dezelfde Iceberg metadata  
-  - Niet in de Spark write-path
+- **Polaris**
+  - Iceberg REST catalog
+  - Principals, roles, catalog metadata
+  - Governance layer for catalog access
 
-- **Trino**  
-  - SQL analytics  
-  - Leest Iceberg tabellen **via Polaris REST**
+- **Trino**
+  - SQL analytics
+  - Reads Iceberg tables **via Polaris REST** (read-only)
 
-### Architectuurschets
+### Architecture sketch
 
 ```
                    Host (VS Code / CLI / Browser)
@@ -76,7 +76,7 @@ Alle services draaien in één Docker-netwerk.
                                               | Spark Worker|
                                               +-------------+
                                                      |
-                                                     | S3A
+                                                     | S3A / S3FileIO
     +------------------+                   +--------v--------+
     | Polaris Catalog  | <---- REST ------ | Iceberg Tables  |
     | (governance)     |                   | on MinIO        |
@@ -85,75 +85,67 @@ Alle services draaien in één Docker-netwerk.
               |                               +------v------+
               | REST                          |   MinIO     |
               |                               +-------------+
-			  v
+              v
     +------------------+
     | Trino            |
     | (read-only SQL)  |
     +--------+---------+
-             
-
 ```
 
 ---
 
-## Waarom gebruikt Spark Polaris nog niet direct?
+## Why keep a filesystem fallback?
 
-Kort gezegd: **Spark schrijft standaard via Polaris**.
+Polaris is the default path for Spark writes, but a filesystem/Hadoop fallback is available for recovery or troubleshooting:
 
-- Spark gebruikt de Polaris REST catalog voor DDL/DML en commit-coördinatie
-- Metadata loopt via Polaris in plaats van direct naar filesystem
-- Polaris verzorgt governance en authenticatie via OAuth2
+- **Spark → Polaris REST catalog → Iceberg** (default read/write)
+- **Spark → filesystem (S3A) → Iceberg** (explicit fallback)
+- **Trino → Polaris → Iceberg** (read-only)
 
-Fallback is mogelijk:
-
-- **Spark → Polaris REST catalog → Iceberg** (default, read/write via Polaris)
-- **Spark → filesystem (S3A) → Iceberg** (alleen bij expliciete fallback)
-- **Trino → Polaris → Iceberg**
-
-Zo blijft Polaris de bron van waarheid voor metadata, terwijl een filesystem-fallback beschikbaar is voor noodgevallen.
+This keeps Polaris as the source of truth for catalog metadata while preserving a reliable fallback option.
 
 ---
 
-## Feature-flag voor Spark (filesystem vs Polaris)
+## Feature flag for Spark (filesystem vs Polaris)
 
-De stack ondersteunt één expliciete switch:
+The stack supports an explicit switch:
 
 ```bash
 SPARK_CATALOG_MODE=polaris      # default (REST catalog)
-# of
+# or
 SPARK_CATALOG_MODE=filesystem   # fallback (direct filesystem)
 ```
 
-- Wordt gezet per Spark service
-- Selecteert bij startup de juiste `spark-defaults.conf`
-- Maakt het mogelijk om terug te schakelen naar filesystem zonder herbouw van de stack
+- Set per Spark service
+- Selects the correct `spark-defaults.conf` at startup
+- Allows fallback without rebuilding the stack
 
 ---
 
 ## Spark S3A support (MinIO)
 
-- Hadoop-versie wordt tijdens de image build automatisch gedetecteerd (via `spark-submit --version`).
-- De build voegt de volgende JARs toe aan `/opt/spark/jars`:
+- The Hadoop version is detected during image build (via `spark-submit --version`).
+- The build adds these JARs to `/opt/spark/jars`:
   - `hadoop-aws-${HADOOP_VERSION}.jar`
   - `aws-java-sdk-bundle-1.12.x.jar`
 
-Voorbeeld:
+Example:
 
 ```python
 spark.read.json("s3a://warehouse/landing/file.json")
 ```
 
-**Landingzone vs Iceberg/Polaris**
+**Landing zone vs Iceberg/Polaris**
 
-- Landingzone lezen: `s3a://...` (Hadoop S3A)
-- Iceberg/Polaris warehouse: `s3://...` met `S3FileIO` (iceberg-aws-bundle)
-- Zie je geen `polaris` in `SHOW CATALOGS`? Herstart de kernel of hercreëer de Jupyter service.
+- Landing zone reads: `s3a://...` (Hadoop S3A)
+- Iceberg/Polaris warehouse: `s3://...` with `S3FileIO` (iceberg-aws-bundle)
+- Don’t see `polaris` in `SHOW CATALOGS`? Restart the kernel or recreate the Jupyter service.
 
 ---
 
 ## Python version alignment
 
-Spark executors en drivers gebruiken Python 3.11 via `/opt/py311`.
+Spark executors and drivers use Python 3.11 via `/opt/py311`.
 
 ```bash
 docker compose exec spark-worker bash -lc "/opt/py311/bin/python --version"
@@ -164,7 +156,7 @@ docker compose exec spark-master bash -lc "echo $PYSPARK_PYTHON"
 
 ## Polaris Spark check
 
-Voer in een PySpark notebook/JupyterLab:
+Run this in a PySpark notebook/JupyterLab:
 
 ```python
 print("spark.jars.packages =", spark.conf.get("spark.jars.packages", ""))
@@ -174,16 +166,16 @@ print("spark.range(1).count() =", spark.range(1).count())
 
 ---
 
-## Services in het kort
+## Services at a glance
 
 - **MinIO** – S3-compatible storage
-- **Spark Master / Worker** – ETL en data creatie
-- **Spark Thrift Server** – JDBC endpoint voor dbt
-- **Polaris** – Iceberg REST catalog en governance
+- **Spark Master / Worker** – ETL and data creation
+- **Spark Thrift Server** – JDBC endpoint for dbt
+- **Polaris** – Iceberg REST catalog and governance
 - **Trino** – Read-only SQL analytics
 - **JupyterLab** – PySpark notebooks
-- **dbt** – Transformaties (bronze → silver → gold)
-- **VS Code devcontainer** – Ontwikkelomgeving
+- **dbt** – Transformations (bronze → silver → gold)
+- **VS Code devcontainer** – Development environment
 
 ---
 
@@ -191,7 +183,7 @@ print("spark.range(1).count() =", spark.range(1).count())
 
 - Docker Desktop / Engine (Compose v2)
 - ±6 GB RAM, 4 CPU cores
-- macOS, Linux of Windows 11 (WSL2)
+- macOS, Linux, or Windows 11 (WSL2)
 - Git
 - Browser
 
@@ -213,11 +205,24 @@ docker compose exec dev bash -lc "scripts/dbt_check.sh"
 docker compose exec dev bash -lc "cd dbt && dbt run -s smoke && dbt test -s smoke"
 ```
 
-De Thrift Server bootstrapt automatisch `polaris.default`, dus dbt kan direct verbinden zonder handmatige namespace-setup.
+The Thrift Server bootstraps `polaris.default`, so dbt can connect without manual namespace setup.
+
+### dbt bronze → silver → gold
+
+Run the following from the dbt project directory (e.g., `docker compose exec dev bash -lc "cd dbt"`):
+
+```bash
+dbt run  --select silver --full-refresh
+dbt test --select silver --indirect-selection=empty
+
+
+dbt run  --select gold --full-refresh
+dbt test --select gold
+```
 
 ## Notebooks
 
-Notebooks draaien via de **jupyter** service (niet via de dev container).
+Notebooks run through the **jupyter** service (not the dev container).
 
 ```bash
 docker compose up -d jupyter
@@ -225,7 +230,7 @@ docker compose up -d jupyter
 
 Open: http://localhost:8888
 
-### Polaris bootstrap validatie
+### Polaris bootstrap validation
 
 ```bash
 docker compose up -d polaris minio polaris-bootstrap
@@ -233,13 +238,13 @@ docker compose logs -f polaris-bootstrap
 docker compose exec spark-master bash -lc "/opt/spark/bin/spark-sql -e 'SHOW CATALOGS'"
 ```
 
-Stoppen:
+Stop:
 
 ```bash
 docker compose down
 ```
 
-Volledig resetten:
+Full reset:
 
 ```bash
 docker compose down -v
@@ -266,8 +271,8 @@ docker compose down -v
 ## Data & workflows
 
 - Sample data in `data/`
-- Iceberg tables in `s3a://warehouse/`
-- dbt-modellen van bronze naar gold
+- Iceberg tables in `s3://warehouse/`
+- dbt models from bronze to gold
 
 ```bash
 docker compose exec dev bash -lc "cd dbt && dbt debug"
@@ -278,29 +283,35 @@ docker compose exec dev bash -lc "cd dbt && dbt test -s smoke"
 
 ---
 
-## Werken met Trino
+## Working with Trino
 
 ```sql
 SHOW SCHEMAS FROM polaris;
 SHOW TABLES FROM polaris.default;
-SELECT * FROM polaris.default.jouw_tabel LIMIT 10;
+SELECT * FROM polaris.default.your_table LIMIT 10;
 ```
 
-Trino is in deze setup bewust **read-only**.
+```bash
+docker compose exec trino trino --execute "SHOW SCHEMAS FROM polaris;"
+docker compose exec trino trino --execute "SHOW TABLES FROM polaris.bronze;"
+docker compose exec trino trino --execute "SELECT * FROM polaris.bronze.gekentekendevoertuigen LIMIT 10;"
+```
+
+Trino is intentionally **read-only** in this setup.
 
 ---
 
-## Toekomstige uitbreidingen
+## Future extensions
 
-- Spark via Polaris REST (zodra stabiel)
-- Orchestration met Cosmos (Astronomer)
-- Metadata & lineage met OpenMetadata
+- Polaris credential delegation & fine-grained access policies
+- Orchestration with Cosmos (Astronomer)
+- Metadata & lineage with OpenMetadata
 - Data quality tooling (Great Expectations / Soda)
-- DuckDB voor lokale analytics en CI-checks
+- DuckDB for local analytics and CI checks
 
 ---
 
-## Projectstructuur
+## Project structure
 
 ```
 .
@@ -313,4 +324,3 @@ Trino is in deze setup bewust **read-only**.
 |-- .env
 `-- README.md
 ```
-
