@@ -15,6 +15,7 @@ models:
       md:
         +materialized: incremental
         +incremental_strategy: merge
+        +file_format: iceberg
         +unique_key: kenteken
 
       rd:
@@ -30,8 +31,9 @@ models:
       fact:
         +materialized: incremental
         +incremental_strategy: merge
+        +file_format: iceberg
         +unique_key: event_id
 
     smoke:
-      +schema: "{{ env_var('DBT_SCHEMA', 'dbt_demo') }}"
+      +schema: "{{ env_var('DBT_SMOKE_SCHEMA', 'smoke') }}"
       +materialized: view

@@ -22,4 +22,7 @@ spark-thrift-logs/
 
 # Spark Polaris
 shared/
-metastore_db/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
