@@ -6,9 +6,9 @@ models:
     description: "Centraal master data object voor voertuigen."
     columns:
       - name: kenteken
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
       - name: motorconfiguratie_id
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('rd_motorconfiguratie'), field: motorconfiguratie_id}
 
@@ -16,13 +16,13 @@ models:
     description: "Unieke motorconfiguraties gebaseerd op voertuigtechniek."
     columns:
       - name: motorconfiguratie_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
 
   - name: rd_voertuig_classificaties
     description: "EU-categorieën, subcategorieën en typegoedkeuringen."
     columns:
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}
 
@@ -30,7 +30,7 @@ models:
     description: "Statusindicatoren van voertuigen."
     columns:
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}
 
@@ -38,6 +38,6 @@ models:
     description: "RDW subresource koppelingen."
     columns:
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}

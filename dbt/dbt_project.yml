@@ -1,12 +1,9 @@
 name: lakehouse_unplugged
 version: "1.0.0"
-config-version: 2
+profile: lakehouse_unplugged
 
 models:
   lakehouse_unplugged:
-    sources:
-      +materialized: view
-
     silver:
       +schema: silver
       +on_schema_change: sync_all_columns

@@ -6,13 +6,13 @@ models:
     description: "Dimensietabel met unieke motorconfiguraties."
     columns:
       - name: motorconfiguratie_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
 
   - name: dim_classificatie
     description: "Dimensietabel met voertuigclassificaties."
     columns:
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}
 
@@ -20,7 +20,7 @@ models:
     description: "Dimensietabel met voertuigstatussen."
     columns:
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}
 
@@ -28,7 +28,7 @@ models:
     description: "Dimensietabel met RDW subresource koppelingen."
     columns:
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}
 
@@ -36,22 +36,22 @@ models:
     description: "Registratiegebeurtenissen zoals eerste toelating en tenaamstellingen."
     columns:
       - name: event_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}
       - name: event_datum
-        tests: [not_null]
+        data_tests: [not_null]
 
   - name: fact_keuring_events
     description: "APK en tachograaf vervaldata als onderhoudsgebeurtenissen."
     columns:
       - name: event_id
-        tests: [not_null, unique]
+        data_tests: [not_null, unique]
       - name: kenteken
-        tests:
+        data_tests:
           - not_null
           - relationships: {to: ref('md_voertuig'), field: kenteken}
       - name: event_datum
-        tests: [not_null]
+        data_tests: [not_null]

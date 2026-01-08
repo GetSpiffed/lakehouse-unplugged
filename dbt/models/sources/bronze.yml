@@ -2,7 +2,6 @@ version: 2
 
 sources:
   - name: lakehouse_bronze
-    database: lakehouse
     schema: bronze
     description: "Bronzetabellen uit het Lakehouse."
     tables:
