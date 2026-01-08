@@ -5,7 +5,7 @@ profile: lakehouse_unplugged
 models:
   lakehouse_unplugged:
     demo:
-      +schema: "{{ env_var('DBT_SCHEMA', 'dbt_demo') }}"
+      +schema: "demo"
       +materialized: table
 
     silver:
