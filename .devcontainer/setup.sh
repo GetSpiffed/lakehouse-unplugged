@@ -31,6 +31,7 @@ echo "✔ Polaris is reachable."
 echo "🔐 Verifying required environment variables..."
 
 : "${SPARK_MASTER:?Missing SPARK_MASTER}"
+: "${DBT_PROFILES_DIR:?Missing DBT_PROFILES_DIR}"
 
 # Polaris creds are optional for now (used later by Trino / tooling)
 if [ -n "${POLARIS_CLIENT_ID:-}" ]; then
@@ -38,7 +39,32 @@ if [ -n "${POLARIS_CLIENT_ID:-}" ]; then
 fi
 
 # --------------------------------------------------------------------
-# 3. Developer convenience in .bashrc
+# 3. Ensure dbt profile exists
+# --------------------------------------------------------------------
+PROFILE_FILE="${DBT_PROFILES_DIR}/profiles.yml"
+
+if [ ! -f "$PROFILE_FILE" ]; then
+  echo "📝 Creating default dbt profile..."
+  mkdir -p "$DBT_PROFILES_DIR"
+
+  cat <<EOF > "$PROFILE_FILE"
+default:
+  outputs:
+    dev:
+      type: spark
+      method: thrift
+      host: thrift-server
+      port: 10000
+      schema: default
+      auth: NONE
+  target: dev
+EOF
+else
+  echo "ℹ️ Existing dbt profile found. Leaving as is."
+fi
+
+# --------------------------------------------------------------------
+# 4. Developer convenience in .bashrc
 # --------------------------------------------------------------------
 if ! grep -q "Lakehouse-Unplugged environment" /root/.bashrc 2>/dev/null; then
   echo "💡 Adding helper aliases and vars to .bashrc..."
@@ -48,6 +74,8 @@ if ! grep -q "Lakehouse-Unplugged environment" /root/.bashrc 2>/dev/null; then
 # ------------------------------------------------------------
 # Lakehouse-Unplugged environment
 # ------------------------------------------------------------
+export DBT_PROFILES_DIR=/workspace/dbt
+
 # Only set Spark env if Spark is actually present in this container
 if [ -x /opt/spark/bin/spark-submit ]; then
   export SPARK_HOME=/opt/spark
@@ -71,7 +99,7 @@ ENVVARS
 fi
 
 # --------------------------------------------------------------------
-# 4. Spark smoke test (optional; skip if spark-sql not present)
+# 5. Spark smoke test (optional; skip if spark-sql not present)
 # --------------------------------------------------------------------
 echo "⚡ Spark smoke test (optional)..."
 
@@ -92,12 +120,13 @@ else
 fi
 
 # --------------------------------------------------------------------
-# 5. Summary
+# 6. Summary
 # --------------------------------------------------------------------
 echo "----------------------------------------------------"
 echo "🎉 Lakehouse Unplugged dev setup complete."
 echo ""
 echo "📦 Tooling:"
+dbt --version | head -n 1 | sed 's/^/• /' || true
 
 if python3 -c "import pyspark" >/dev/null 2>&1; then
   python3 -c "import pyspark; print('PySpark', pyspark.__version__)"
@@ -109,3 +138,6 @@ echo ""
 echo "💡 Available helpers:"
 echo "   check_spark    # Spark connectivity (if spark-sql installed)"
 echo "   check_polaris  # Polaris health"
+echo ""
+echo "📁 dbt profile:"
+echo "   $(realpath "$PROFILE_FILE")"

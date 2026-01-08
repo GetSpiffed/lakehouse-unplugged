@@ -78,6 +78,12 @@ else
   echo "• Python: not found"
 fi
 
+if command -v dbt >/dev/null 2>&1; then
+  echo "• dbt: $(dbt --version | head -n 1)"
+else
+  echo "• dbt: not found"
+fi
+
 if command -v python3 >/dev/null 2>&1 && python3 -c "import pyspark" >/dev/null 2>&1; then
   PYSPARK_VER=$(python3 -c 'import pyspark; print(pyspark.__version__)')
   echo "• PySpark: ${PYSPARK_VER}"
