@@ -27,8 +27,8 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 # -------------------------------------------------------------------
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-        dbt-core==1.8.6 \
-        dbt-spark[PyHive]==1.8.0 \
+        "dbt-core==1.11.2" \
+        "dbt-spark[PyHive]==1.10.0" \
         pandas \
         boto3 && \
     rm -rf /root/.cache/pip
