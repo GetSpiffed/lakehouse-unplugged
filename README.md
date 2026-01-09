@@ -88,19 +88,19 @@ All services run in a single Docker network.
                                                      |
                                                      | Spark SQL
                                                      v
-    +------------------+                   +------------------+
-    | JupyterLab       | <---------------> | Spark Master     |
-    +------------------+                   +--------+---------+
+    +------------------+                    +------------------+
+    | JupyterLab       | <----------------> | Spark Master     |
+    +------------------+                    +--------+---------+
                                                      |
                                               +------v------+
                                               | Spark Worker|
                                               +-------------+
                                                      |
                                                      | S3A / S3FileIO
-    +------------------+                   +--------v--------+
-    | Polaris Catalog  | <---- REST ------ | Iceberg Tables  |
-    | (governance)     |                   | on MinIO        |
-    +------------------+                   +--------+--------+
+    +------------------+                    +--------v--------+
+    | Polaris Catalog  | <---- REST ------- | Iceberg Tables  |
+    | (governance)     |                    | on MinIO        |
+    +------------------+                    +--------+--------+
               |                                      |
               |                               +------v------+
               | REST                          |   MinIO     |
