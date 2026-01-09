@@ -326,11 +326,15 @@ services:
         condition: service_started
     environment:
       DBT_PROFILES_DIR: /usr/app/project
+    entrypoint: ["/bin/bash","-lc","tail -f /dev/null"]
     volumes:
       - ./dbt:/usr/app/project
     working_dir: /usr/app/project
     networks:
       - lakehouse
+    restart: unless-stopped
+
+  
 
   # ======================================================================
   # 🌬️ Airflow + Cosmos
