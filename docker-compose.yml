@@ -49,9 +49,29 @@ services:
   # ======================================================================
   # 🔭 Polaris
   # ======================================================================
+
+  polaris-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: polaris
+      POSTGRES_PASSWORD: polaris
+      POSTGRES_DB: polaris
+    volumes:
+      - polaris-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polaris -d polaris"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - lakehouse
+
+    
   polaris:
     image: apache/polaris:1.2.0-incubating
     depends_on:
+      polaris-db:
+        condition: service_healthy
       minio:
         condition: service_healthy
       minio-setup:
@@ -80,6 +100,10 @@ services:
       POLARIS_UI_ENABLED: "true"
       POLARIS_FEATURES_ICEBERG_COMPAT_ENABLED: "true"
       POLARIS_FEATURES_ICEBERG_COMPAT_PREFIX: "/api/catalog"
+
+      POLARIS_DB_URL: jdbc:postgresql://polaris-db:5432/polaris
+      POLARIS_DB_USER: polaris
+      POLARIS_DB_PASSWORD: polaris
     ports:
       - "8181:8181"
       - "8182:8182"
@@ -406,6 +430,7 @@ volumes:
   minio-data:
   trino-data:
   airflow-db-data:
+  polaris-db-data:
 
 networks:
   lakehouse:
