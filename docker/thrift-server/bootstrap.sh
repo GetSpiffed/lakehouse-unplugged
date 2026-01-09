@@ -38,29 +38,27 @@ mkdir -p "$SPARK_WAREHOUSE_DIR" "$DERBY_HOME" || true
 
 # Zorg dat deze call ook niet via Hive/Derby gaat
 log "🏗️ Ensuring namespace exists in default catalog (polaris): default"
- /opt/spark/bin/spark-sql \
+/opt/spark/bin/spark-sql \
   --master "$SPARK_MASTER_URL" \
   --conf spark.sql.defaultCatalog=polaris \
   --conf spark.sql.catalogImplementation=in-memory \
   --conf spark.sql.warehouse.dir="file:${SPARK_WAREHOUSE_DIR}" \
   --conf "spark.driver.extraJavaOptions=-Dderby.system.home=${DERBY_HOME}" \
-  -e "CREATE NAMESPACE IF NOT EXISTS default"
+  -e "CREATE NAMESPACE IF NOT EXISTS polaris.default"
 
 log "🚀 Starting Spark Thrift Server (Polaris-first, no Hive metastore/Derby)"
 /opt/spark/sbin/start-thriftserver.sh \
   --master "$SPARK_MASTER_URL" \
   --name ThriftServer \
   --conf spark.app.name=ThriftServer \
-  --conf spark.driver.host=thrift-server \
-  --conf spark.driver.bindAddress=0.0.0.0 \
   --conf spark.sql.defaultCatalog=polaris \
   --conf spark.sql.catalogImplementation=in-memory \
   --conf spark.sql.warehouse.dir="file:${SPARK_WAREHOUSE_DIR}" \
   --conf spark.sql.shuffle.partitions=8 \
   --conf spark.sql.adaptive.enabled=true \
-  --conf spark.cores.max=2 \
-  --conf spark.executor.cores=1 \
-  --conf spark.executor.instances=2 \
+  --conf spark.cores.max=3 \
+  --conf spark.executor.cores=3 \
+  --conf spark.executor.instances=1 \
   --conf spark.executor.memory=1g \
   --conf spark.driver.cores=1 \
   --conf spark.driver.memory=768m \
