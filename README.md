@@ -219,7 +219,7 @@ cd lakehouse-unplugged
 docker compose up -d --build
 ```
 
-## dbt quickstart
+## dbt quickstart (dbt service in the dbt container)
 
 ```bash
 docker compose up -d --build
@@ -232,7 +232,7 @@ The Thrift Server bootstraps `polaris.default`, so dbt can connect without manua
 
 ### dbt bronze → silver → gold
 
-Run the following via the dbt container:
+Run the following via the dbt container (Powershell):
 
 ```bash
 docker compose run --rm dbt run  --select silver --full-refresh
@@ -242,6 +242,8 @@ docker compose run --rm dbt test --select silver --indirect-selection=empty
 docker compose run --rm dbt run  --select gold --full-refresh
 docker compose run --rm dbt test --select gold
 ```
+## dbt quickstart: using dbt in dev container (VSCode)
+
 
 ## Notebooks
 
@@ -251,7 +253,7 @@ Notebooks run through the **jupyter** service (not the dev container).
 docker compose up -d jupyter
 ```
 
-Open: http://localhost:8888
+Register Jupyter kernel in vscode with this url: http://localhost:8888
 
 ### Polaris bootstrap validation
 
