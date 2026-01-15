@@ -9,6 +9,7 @@ The focus is on **understanding how the components fit together**, with a setup 
 > dbt is up and running, with models for Silver and Gold.
 > Jupyter works against Spark for interactive development and testing.
 > Trino uses Polaris for read-only analytics.
+> Airflow services are included but **not yet functionally integrated** (work in progress).
 > A filesystem/Hadoop fallback is available if needed.
 > 
 > Together this forms a laptop-first, fully working end-to-end stack.
@@ -25,8 +26,9 @@ The focus is on **understanding how the components fit together**, with a setup 
   - Polaris Catalog
   - Trino
   - JupyterLab
-  - dbt runner
+  - dbt runner (scheduled runs)
   - VS Code devcontainer
+  - Airflow services (work in progress)
 - Iceberg-ready object storage on MinIO (`warehouse` bucket created automatically)
 - Example notebooks and dbt models (bronze → silver → gold)
 - Feature flag to switch Spark between Polaris REST and filesystem mode
@@ -36,6 +38,10 @@ The focus is on **understanding how the components fit together**, with a setup 
 ## Architecture overview
 
 All services run in a single Docker network.
+
+- **dbt**
+  - Scheduled runs via the **dbt service** (Spark Thrift JDBC)
+  - Development/authoring via **dbt in the devcontainer**
 
 - **Spark**
   - ETL, dbt, data creation
@@ -50,6 +56,9 @@ All services run in a single Docker network.
 - **Trino**
   - SQL analytics
   - Reads Iceberg tables **via Polaris REST** (read-only)
+
+- **Airflow**
+  - Services present but **not yet functionally integrated** (work in progress)
 
 ### Architecture sketch
 
@@ -67,25 +76,31 @@ All services run in a single Docker network.
     Docker Compose Network
     ---------------------------------------------------------
 
-    +------------------+        JDBC        +------------------+
+    +------------------+        JDBC       +------------------+
     | dbt Runner       | <---------------> | Spark Thrift     |
-    +------------------+                   +------------------+
+    | (scheduled runs) |                   +------------------+
+    +------------------+                             |
+                                                     |
+    +------------------+                             |
+    | Airflow          |                             |
+    | (WIP)            |                             |
+    +------------------+                             |
                                                      |
                                                      | Spark SQL
                                                      v
-    +------------------+                   +------------------+
-    | JupyterLab       | <---------------> | Spark Master     |
-    +------------------+                   +--------+---------+
+    +------------------+                    +------------------+
+    | JupyterLab       | <----------------> | Spark Master     |
+    +------------------+                    +--------+---------+
                                                      |
                                               +------v------+
                                               | Spark Worker|
                                               +-------------+
                                                      |
                                                      | S3A / S3FileIO
-    +------------------+                   +--------v--------+
-    | Polaris Catalog  | <---- REST ------ | Iceberg Tables  |
-    | (governance)     |                   | on MinIO        |
-    +------------------+                   +--------+--------+
+    +------------------+                    +--------v--------+
+    | Polaris Catalog  | <---- REST ------- | Iceberg Tables  |
+    | (governance)     |                    | on MinIO        |
+    +------------------+                    +--------+--------+
               |                                      |
               |                               +------v------+
               | REST                          |   MinIO     |
@@ -180,7 +195,9 @@ print("spark.range(1).count() =", spark.range(1).count())
 - **Trino** – Read-only SQL analytics
 - **JupyterLab** – PySpark notebooks
 - **dbt** – Transformations (bronze → silver → gold)
+- **dbt in devcontainer** – Development/authoring environment
 - **VS Code devcontainer** – Development environment
+- **Airflow** – Work in progress (services present, not yet integrated)
 
 ---
 
@@ -319,7 +336,8 @@ Trino is intentionally **read-only** in this setup.
 
 ## Run dbt in container
 
-dbt runs in its own container; the devcontainer no longer includes dbt.
+The **dbt service** is intended for **scheduled runs**. For development and authoring,
+use **dbt inside the devcontainer**.
 
 ```bash
 docker compose run --rm dbt debug
@@ -345,6 +363,8 @@ docker compose run --rm dbt parse
 ```bash
 docker compose up -d airflow-db airflow-init airflow-webserver airflow-scheduler airflow-triggerer
 ```
+
+Airflow is still **work in progress**: the services are present but not yet functionally integrated.
 
 Airflow UI: http://localhost:8089 (admin/admin)
 
