@@ -244,6 +244,28 @@ docker compose run --rm dbt test --select gold
 ```
 ## dbt quickstart: using dbt in dev container (VSCode)
 
+Use this for development and authoring with dbt inside the VS Code devcontainer.
+
+1. Start the stack (from your host shell):
+
+```bash
+docker compose up -d --build
+```
+
+2. Open the repo in VS Code and **Reopen in Container** (Command Palette → “Dev Containers: Reopen in Container”).
+
+3. In the VS Code terminal (inside the devcontainer), run:
+
+```bash
+cd /workspace/dbt
+dbt deps
+dbt debug
+dbt run -s smoke
+dbt test -s smoke
+```
+
+The devcontainer uses `dbt/profiles.yml` and connects to the Spark Thrift Server at `spark-thrift:10000`.
+If you update `profiles.yml`, restart the devcontainer to pick up changes.
 
 ## Notebooks
 
