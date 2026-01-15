@@ -219,30 +219,11 @@ cd lakehouse-unplugged
 docker compose up -d --build
 ```
 
-## dbt quickstart (dbt service in the dbt container)
-
-```bash
-docker compose up -d --build
-docker compose run --rm dbt debug
-docker compose run --rm dbt run -s smoke
-docker compose run --rm dbt test -s smoke
-```
+## dbt: run & develop
 
 The Thrift Server bootstraps `polaris.default`, so dbt can connect without manual namespace setup.
 
-### dbt bronze → silver → gold
-
-Run the following via the dbt container (Powershell):
-
-```bash
-docker compose run --rm dbt run  --select silver --full-refresh
-docker compose run --rm dbt test --select silver --indirect-selection=empty
-
-
-docker compose run --rm dbt run  --select gold --full-refresh
-docker compose run --rm dbt test --select gold
-```
-## dbt quickstart: using dbt in dev container (VSCode)
+### Development in the devcontainer (VS Code terminal)
 
 Use this for development and authoring with dbt inside the VS Code devcontainer.
 
@@ -264,8 +245,39 @@ dbt run -s smoke
 dbt test -s smoke
 ```
 
+#### Silver & Gold models (VS Code terminal)
+
+```bash
+dbt run  --select silver --full-refresh
+dbt test --select silver --indirect-selection=empty
+
+dbt run  --select gold --full-refresh
+dbt test --select gold
+```
+
 The devcontainer uses `dbt/profiles.yml` and connects to the Spark Thrift Server at `spark-thrift:10000`.
 If you update `profiles.yml`, restart the devcontainer to pick up changes.
+
+### Scheduled runs via the dbt container (PowerShell window)
+
+Use the **dbt service** for scheduled runs (outside the devcontainer).
+
+```bash
+docker compose up -d --build
+docker compose run --rm dbt debug
+docker compose run --rm dbt run -s smoke
+docker compose run --rm dbt test -s smoke
+```
+
+#### Silver & Gold models (PowerShell window)
+
+```bash
+docker compose run --rm dbt run  --select silver --full-refresh
+docker compose run --rm dbt test --select silver --indirect-selection=empty
+
+docker compose run --rm dbt run  --select gold --full-refresh
+docker compose run --rm dbt test --select gold
+```
 
 ## Notebooks
 
