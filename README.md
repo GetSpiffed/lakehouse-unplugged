@@ -321,7 +321,7 @@ docker compose down -v
 - Iceberg tables in `s3://warehouse/`
 - dbt models from bronze to gold
 
-```bash
+```Powershell
 docker compose run --rm dbt debug
 docker compose run --rm dbt ls
 docker compose run --rm dbt run -s +smoke
@@ -363,23 +363,10 @@ Trino is intentionally **read-only** in this setup.
 The **dbt service** is intended for **scheduled runs**. For development and authoring,
 use **dbt inside the devcontainer**.
 
-```bash
+```powershell
 docker compose run --rm dbt debug
 docker compose run --rm dbt run
 docker compose run --rm dbt test
-```
-
-Smoke test (WSL or Git Bash):
-
-```bash
-./scripts/dbt_smoke.sh
-```
-
-PowerShell alternative:
-
-```powershell
-docker compose run --rm dbt debug
-docker compose run --rm dbt parse
 ```
 
 ## Start Airflow
