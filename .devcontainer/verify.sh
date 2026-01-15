@@ -79,17 +79,24 @@ else
 fi
 
 if command -v dbt >/dev/null 2>&1; then
-  echo "• dbt: $(dbt --version | head -n 1)"
+  DBT_CORE_VER=$(dbt --version 2>/dev/null | awk '/Core:/ {p=1} p && /installed:/ {print $3; exit}')
+  DBT_SPARK_VER=$(dbt --version 2>/dev/null | awk '/Plugins:/ {p=1} p && /- spark:/ {print $3; exit}')
+
+  if [ -n "$DBT_CORE_VER" ]; then
+    echo "• dbt-core: ${DBT_CORE_VER}"
+  else
+    echo "• dbt-core: (version not detected)"
+  fi
+
+  if [ -n "$DBT_SPARK_VER" ]; then
+    echo "• dbt-spark: ${DBT_SPARK_VER}"
+  else
+    echo "• dbt-spark: (not installed or not detected)"
+  fi
 else
   echo "• dbt: not found"
 fi
 
-if command -v python3 >/dev/null 2>&1 && python3 -c "import pyspark" >/dev/null 2>&1; then
-  PYSPARK_VER=$(python3 -c 'import pyspark; print(pyspark.__version__)')
-  echo "• PySpark: ${PYSPARK_VER}"
-else
-  echo "• PySpark: not available"
-fi
 
 echo ""
 echo "------------------------------------------------"

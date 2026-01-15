@@ -11,9 +11,8 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('rd_motorconfiguratie')
-                field: motorconfiguratie_id
+              to: ref('rd_motorconfiguratie')
+              field: motorconfiguratie_id
 
   - name: rd_motorconfiguratie
     description: "Unieke motorconfiguraties gebaseerd op voertuigtechniek."
@@ -28,9 +27,8 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken
 
   - name: rd_voertuig_statuswaarden
     description: "Statusindicatoren van voertuigen."
@@ -39,9 +37,8 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken
 
   - name: rd_rdw_referenties
     description: "RDW subresource koppelingen."
@@ -50,6 +47,5 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken

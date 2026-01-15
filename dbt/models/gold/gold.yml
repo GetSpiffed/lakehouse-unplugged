@@ -15,9 +15,8 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken
 
   - name: dim_status
     description: "Dimensietabel met voertuigstatussen."
@@ -26,9 +25,8 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken
 
   - name: dim_rdw_referentie
     description: "Dimensietabel met RDW subresource koppelingen."
@@ -37,9 +35,8 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken
 
   - name: fact_registratie_events
     description: "Registratiegebeurtenissen zoals eerste toelating en tenaamstellingen."
@@ -50,9 +47,8 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken
       - name: event_datum
         data_tests: [not_null]
 
@@ -65,8 +61,7 @@ models:
         data_tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('md_voertuig')
-                field: kenteken
+              to: ref('md_voertuig')
+              field: kenteken
       - name: event_datum
         data_tests: [not_null]
