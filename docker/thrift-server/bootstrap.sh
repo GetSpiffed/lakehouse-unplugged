@@ -54,14 +54,15 @@ log "🚀 Starting Spark Thrift Server (Polaris-first, no Hive metastore/Derby)"
   --conf spark.sql.defaultCatalog=polaris \
   --conf spark.sql.catalogImplementation=in-memory \
   --conf spark.sql.warehouse.dir="file:${SPARK_WAREHOUSE_DIR}" \
+  --conf spark.scheduler.mode=FAIR \
   --conf spark.sql.shuffle.partitions=8 \
   --conf spark.sql.adaptive.enabled=true \
-  --conf spark.cores.max=3 \
-  --conf spark.executor.cores=3 \
-  --conf spark.executor.instances=1 \
+  --conf spark.cores.max=2 \
+  --conf spark.executor.cores=1 \
+  --conf spark.executor.instances=2 \
   --conf spark.executor.memory=1g \
   --conf spark.driver.cores=1 \
-  --conf spark.driver.memory=768m \
+  --conf spark.driver.memory=512m \
   --conf "spark.driver.extraJavaOptions=-Dderby.system.home=${DERBY_HOME}" \
   --conf "spark.executor.extraJavaOptions=-Dderby.system.home=${DERBY_HOME}" \
   --hiveconf hive.server2.authentication=NONE \
