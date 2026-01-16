@@ -227,6 +227,12 @@ The Thrift Server bootstraps `polaris.default`, so dbt can connect without manua
 
 Use this for development and authoring with dbt inside the VS Code devcontainer.
 
+By default, dbt writes to the `silver` and `gold` schemas (or the values from
+`DBT_SILVER_SCHEMA` / `DBT_GOLD_SCHEMA`) without adding the `DBT_SCHEMA` prefix. The
+`dbt/macros/generate_schema_name.sql` macro controls this behavior by returning the
+explicit schema name when one is configured and falling back to the target schema
+otherwise.
+
 1. Start the stack (from your host shell):
 
 ```bash
