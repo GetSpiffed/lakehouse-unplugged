@@ -201,6 +201,22 @@ print("spark.range(1).count() =", spark.range(1).count())
 
 ---
 
+## Version baseline (May 2026)
+
+Current pinned baseline in this repo:
+
+- **Apache Polaris**: `1.5.0`
+- **Apache Spark**: `3.5.1`
+- **Apache Iceberg runtime (Spark JARs)**: `1.10.0`
+- **Trino**: `480`
+
+Notes:
+
+- Polaris `1.6` is not an available Apache Polaris release at the time of writing; this stack targets `1.5.0` as the current Polaris baseline.
+- This baseline keeps Polaris and Trino on actively maintained versions and keeps Spark + Iceberg aligned with the existing Spark 3.5 setup in this stack.
+
+---
+
 ## Prerequisites
 
 - Docker Desktop / Engine (Compose v2)

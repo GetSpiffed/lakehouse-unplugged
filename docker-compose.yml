@@ -68,7 +68,7 @@ services:
 
     
   polaris:
-    image: apache/polaris:1.2.0-incubating
+    image: apache/polaris:1.5.0
     depends_on:
       polaris-db:
         condition: service_healthy
@@ -223,7 +223,7 @@ services:
   # 🧠 Trino (analytics via Polaris)
   # ======================================================================
   trino:
-    image: trinodb/trino:455
+    image: trinodb/trino:480
     container_name: trino
     env_file:
       - ./.env
