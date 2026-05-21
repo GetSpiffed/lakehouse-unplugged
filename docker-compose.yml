@@ -232,6 +232,12 @@ services:
     volumes:
       - ./docker/trino/etc:/etc/trino
       - trino-data:/data/trino
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s      
     depends_on:
       - polaris
       - minio
