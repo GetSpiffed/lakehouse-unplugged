@@ -41,8 +41,9 @@ export default function PolarisDashboard() {
             {state[key]?.loading && <p>Loading...</p>}
             {state[key]?.status && <small>HTTP {state[key].status}</small>}
             {state[key]?.error && <p className="error">{state[key].error}</p>}
-            {state[key]?.payload && <pre>{JSON.stringify(state[key].payload, null, 2)}</pre>}
-          </div>
+            {state[key]?.payload !== undefined && (
+              <pre>{JSON.stringify(state[key].payload as unknown, null, 2)}</pre>
+            )}          </div>
         ))}
       </div>
       <div className="card">

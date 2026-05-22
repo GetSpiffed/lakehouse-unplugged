@@ -132,7 +132,7 @@ services:
 
   polaris-ui:
     build:
-      context: ./polaris-ui
+      context: ./docker/polaris-ui
       dockerfile: Dockerfile
     env_file:
       - ./.env
