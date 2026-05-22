@@ -426,3 +426,57 @@ Airflow UI: http://localhost:8089 (admin/admin)
 |-- .env
 `-- README.md
 ```
+
+---
+
+## Polaris Read-Only UI
+
+A new service `polaris-ui` is included as a **read-only** web application built with Next.js + TypeScript.
+
+### Starten
+
+```bash
+docker compose up -d --build polaris-ui
+```
+
+Open in browser:
+
+- http://localhost:3000
+
+### Environment variables
+
+`polaris-ui` is configurable through environment variables (in `.env` or shell):
+
+- `POLARIS_BASE_URL` (default: `http://polaris:8181`)  
+  Internal URL used by the server-side proxy.
+- `POLARIS_API_USER` (optional)  
+  Basic auth username for Polaris management endpoints.
+- `POLARIS_API_PASSWORD` (optional)  
+  Basic auth password for Polaris management endpoints.
+- `POLARIS_API_BEARER_TOKEN` (optional)  
+  Bearer token (takes precedence over basic auth when set).
+
+### Gebruikte Polaris endpoints (eerste mapping)
+
+The UI calls its own backend route (`/api/polaris/...`), which in turn does **server-side GET** calls to Polaris.
+
+Configured endpoint mapping in this first version:
+
+- `/api/management/v1/catalogs`
+- `/api/management/v1/principals`
+- `/api/management/v1/principal-roles`
+- `/api/management/v1/catalog-roles`
+- `/api/management/v1/grants`
+- `/api/management/v1/principal-role-bindings`
+- `/api/management/v1/catalog-role-bindings`
+- `/api/catalog/v1/namespaces`
+- `/api/catalog/v1/tables`
+
+If your Polaris version/exposure differs, adjust the endpoint map in `polaris-ui/src/lib/polaris.ts`.
+
+### Beperkingen
+
+- UI is intentionally **read-only**: no POST/PUT/PATCH/DELETE is implemented.
+- Data availability depends on enabled Polaris APIs and auth setup.
+- Some endpoints may return 404/401/403 depending on Polaris configuration.
+- The UI shows friendly errors when Polaris is unreachable or an endpoint is missing.
