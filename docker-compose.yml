@@ -134,11 +134,10 @@ services:
     build:
       context: ./polaris-ui
       dockerfile: Dockerfile
+    env_file:
+      - ./.env
     environment:
-      POLARIS_BASE_URL: ${POLARIS_BASE_URL:-http://polaris:8181}
-      POLARIS_API_USER: ${POLARIS_API_USER:-}
-      POLARIS_API_PASSWORD: ${POLARIS_API_PASSWORD:-}
-      POLARIS_API_BEARER_TOKEN: ${POLARIS_API_BEARER_TOKEN:-}
+      POLARIS_BASE_URL: http://polaris:8181
     depends_on:
       polaris:
         condition: service_healthy
