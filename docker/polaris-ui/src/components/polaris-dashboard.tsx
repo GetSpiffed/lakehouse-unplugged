@@ -43,7 +43,8 @@ export default function PolarisDashboard() {
             {state[key]?.error && <p className="error">{state[key].error}</p>}
             {state[key]?.payload !== undefined && (
               <pre>{JSON.stringify(state[key].payload as unknown, null, 2)}</pre>
-            )}          </div>
+            )}
+          </div>
         ))}
       </div>
       <div className="card">
