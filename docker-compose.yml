@@ -129,6 +129,23 @@ services:
     networks:
       - lakehouse
 
+
+  polaris-ui:
+    build:
+      context: ./docker/polaris-ui
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      POLARIS_BASE_URL: http://polaris:8181
+    depends_on:
+      polaris:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - lakehouse
+
   # ======================================================================
   # ⚙️ Spark (Polaris catalog)
   # ======================================================================
