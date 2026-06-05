@@ -9,7 +9,7 @@ DBT_SCHEMA="${DBT_SCHEMA:-dbt_demo}"
 POLARIS_URI="${POLARIS_URI:-http://polaris:8181/api/catalog}"
 POLARIS_OAUTH2_TOKEN_URL="${POLARIS_OAUTH2_TOKEN_URL:-http://polaris:8181/api/catalog/v1/oauth/tokens}"
 ICEBERG_WAREHOUSE="${ICEBERG_WAREHOUSE:-s3://warehouse/polaris}"
-S3_ENDPOINT="${S3_ENDPOINT:-http://minio:9000}"
+S3_ENDPOINT="${S3_ENDPOINT:-http://seaweedfs:8333}"
 
 wait_for_port() {
   local name="$1"
@@ -19,7 +19,7 @@ wait_for_port() {
 
   echo "⏳ Waiting for ${name} on ${host}:${port}..."
   for ((i = 1; i <= retries; i++)); do
-    python - <<PY
+    if python - <<PY
 import socket
 import sys
 host = "${host}"
@@ -30,7 +30,7 @@ try:
 except OSError:
     sys.exit(1)
 PY
-    if [[ $? -eq 0 ]]; then
+    then
       echo "✅ ${name} is reachable"
       return 0
     fi
@@ -57,7 +57,34 @@ wait_for_http() {
   return 1
 }
 
-wait_for_http "MinIO" "${S3_ENDPOINT}/minio/health/ready"
+wait_for_s3() {
+  local retries="${1:-60}"
+
+  echo "⏳ Waiting for authenticated SeaweedFS S3 ListBuckets..."
+  for ((i = 1; i <= retries; i++)); do
+    if docker compose exec -T jupyter python - <<'PYCODE' >/dev/null 2>&1
+import boto3
+import os
+
+boto3.client(
+    "s3",
+    endpoint_url=os.environ.get("S3_ENDPOINT", "http://seaweedfs:8333"),
+    aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+    aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    region_name=os.environ.get("AWS_REGION", "us-east-1"),
+).head_bucket(Bucket="warehouse")
+PYCODE
+    then
+      echo "✅ SeaweedFS S3 is ready and warehouse exists"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "❌ Timed out waiting for SeaweedFS S3"
+  return 1
+}
+
+wait_for_s3
 wait_for_http "Polaris" "http://polaris:8182/q/health"
 wait_for_port "Spark Thrift Server" "${DBT_SPARK_HOST}" "${DBT_SPARK_PORT}"
 

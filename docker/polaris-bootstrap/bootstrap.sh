@@ -7,7 +7,7 @@ log() {
 
 POLARIS_BASE=${POLARIS_BASE:-http://polaris:8181}
 POLARIS_CATALOG_NAME=${POLARIS_CATALOG_NAME:-polaris}
-MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+S3_ENDPOINT=${S3_ENDPOINT:-http://seaweedfs:8333}
 S3_REGION=${S3_REGION:-us-east-1}
 POLARIS_DEFAULT_BASE_LOCATION=${POLARIS_DEFAULT_BASE_LOCATION:-s3://warehouse/polaris}
 POLARIS_ALLOWED_PREFIX=${POLARIS_ALLOWED_PREFIX:-s3://warehouse/}
@@ -65,7 +65,7 @@ if [[ "${catalog_status}" == "404" ]]; then
     --arg name "${POLARIS_CATALOG_NAME}" \
     --arg default_base "${POLARIS_DEFAULT_BASE_LOCATION}" \
     --arg allowed "${POLARIS_ALLOWED_PREFIX}" \
-    --arg endpoint "${MINIO_ENDPOINT}" \
+    --arg endpoint "${S3_ENDPOINT}" \
     --arg region "${S3_REGION}" \
     '{
       catalog: {

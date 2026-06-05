@@ -1,6 +1,6 @@
 # Lakehouse Unplugged
 
-Hands-on playground for an **open lakehouse stack** with Apache Spark, Apache Iceberg, MinIO, dbt, Jupyter, Polaris, and Trino.
+Hands-on playground for an **open lakehouse stack** with Apache Spark, Apache Iceberg, SeaweedFS, dbt, Jupyter, Polaris, and Trino.
 The focus is on **understanding how the components fit together**, with a setup that works today and can evolve as the stack matures.
 
 > **Project Status (2026)**
@@ -20,7 +20,7 @@ The focus is on **understanding how the components fit together**, with a setup 
 ## What do you build here?
 
 - Docker Compose stack with:
-  - MinIO
+  - SeaweedFS `mini`
   - Spark (master/worker)
   - Spark Thrift Server (for dbt)
   - Polaris Catalog
@@ -29,9 +29,11 @@ The focus is on **understanding how the components fit together**, with a setup 
   - dbt runner (scheduled runs)
   - VS Code devcontainer
   - Airflow services (work in progress)
-- Iceberg-ready object storage on MinIO (`warehouse` bucket created automatically)
+- Iceberg-ready object storage on SeaweedFS (`warehouse` bucket created automatically)
 - Example notebooks and dbt models (bronze → silver → gold)
 - Feature flag to switch Spark between Polaris REST and filesystem mode
+
+> **Storage scope:** this is a local, single-process SeaweedFS `mini` proof-of-concept for development and migration validation. It is not a production SeaweedFS cluster.
 
 ---
 
@@ -99,11 +101,11 @@ All services run in a single Docker network.
                                                      | S3A / S3FileIO
     +------------------+                    +--------v--------+
     | Polaris Catalog  | <---- REST ------- | Iceberg Tables  |
-    | (governance)     |                    | on MinIO        |
+    | (governance)     |                    | on SeaweedFS    |
     +------------------+                    +--------+--------+
               |                                      |
               |                               +------v------+
-              | REST                          |   MinIO     |
+              | REST                          | SeaweedFS   |
               |                               +-------------+
               v
     +------------------+
@@ -142,7 +144,7 @@ SPARK_CATALOG_MODE=filesystem   # fallback (direct filesystem)
 
 ---
 
-## Spark S3A support (MinIO)
+## Spark S3A support (SeaweedFS)
 
 - The Hadoop version is detected during image build (via `spark-submit --version`).
 - The build adds these JARs to `/opt/spark/jars`:
@@ -188,7 +190,7 @@ print("spark.range(1).count() =", spark.range(1).count())
 
 ## Services at a glance
 
-- **MinIO** – S3-compatible storage
+- **SeaweedFS mini** – S3-compatible storage
 - **Spark Master / Worker** – ETL and data creation
 - **Spark Thrift Server** – JDBC endpoint for dbt
 - **Polaris** – Iceberg REST catalog and governance
@@ -298,7 +300,7 @@ Register Jupyter kernel in vscode with this url: http://localhost:8888
 ### Polaris bootstrap validation
 
 ```bash
-docker compose up -d polaris minio polaris-bootstrap
+docker compose up -d polaris seaweedfs polaris-bootstrap
 docker compose logs -f polaris-bootstrap
 docker compose exec spark-master bash -lc "/opt/spark/bin/spark-sql -e 'SHOW CATALOGS'"
 ```
@@ -321,8 +323,7 @@ docker compose down -v
 
 | Service           | URL                            |
 |-------------------|--------------------------------|
-| MinIO API         | http://localhost:9000          |
-| MinIO Console     | http://localhost:9001          |
+| SeaweedFS S3 API  | http://localhost:8333          |
 | Polaris API       | http://localhost:8181          |
 | Polaris Health    | http://localhost:8182/q/health |
 | Spark Master UI   | http://localhost:8080          |
