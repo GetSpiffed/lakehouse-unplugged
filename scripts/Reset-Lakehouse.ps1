@@ -8,7 +8,7 @@ and brings up the full stack. Handles credential persistence across restarts.
 Now includes a Docker daemon health check to prevent hangs if Docker is not running.
 
 .PARAMETER FullReset
-Include --volumes flag to delete all data (MinIO, Polaris, etc.)
+Include --volumes flag to delete all data (SeaweedFS, Polaris, etc.)
 
 .PARAMETER Timeout
 Seconds to wait for Polaris to become healthy (default: 60)
@@ -72,7 +72,7 @@ if ($FullReset) {
 # Step 2: Start Polaris first to generate credentials
 # --------------------------------------------------------------------
 Write-Host "🚀 Starting Polaris (credential generation)..." -ForegroundColor $Green
-docker compose up -d polaris minio
+docker compose up -d polaris seaweedfs
 
 # --------------------------------------------------------------------
 # Step 3: Wait for Polaris API to respond
@@ -155,9 +155,13 @@ $ExistingEnv = if (Test-Path $EnvPath) { Get-Content $EnvPath -Raw } else { "" }
 if ($FullReset -or -not ($ExistingEnv -match "POLARIS_CLIENT_ID")) {
     Write-Host "💾 Writing new .env file..." -ForegroundColor $Cyan
     @"
-# MinIO
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
+# SeaweedFS S3-compatible storage
+S3_ENDPOINT=http://seaweedfs:8333
+S3_BUCKET=warehouse
+AWS_ACCESS_KEY_ID=seaweedadmin
+AWS_SECRET_ACCESS_KEY=seaweedadmin
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
 
 # Spark worker instellingen
 SPARK_WORKER_MEMORY=2G
@@ -191,7 +195,7 @@ docker compose --env-file .env up -d
 Write-Host "⏳ Waiting for services to be healthy..." -ForegroundColor $Yellow
 Start-Sleep -Seconds 40
 
-$Services = @("polaris", "minio", "spark-master", "spark-worker", "thrift-server", "dev")
+$Services = @("polaris", "seaweedfs", "spark-master", "spark-worker", "thrift-server", "dev")
 foreach ($Service in $Services) {
     $Status = docker inspect $Service --format='{{.State.Health.Status}}' 2>$null
     if (-not $Status) { $Status = "no healthcheck" }
@@ -209,7 +213,7 @@ Write-Host "`n----------------------------------------------------" -ForegroundC
 Write-Host "✅ Lakehouse-Unplugged stack is ready!" -ForegroundColor $Green
 Write-Host "----------------------------------------------------" -ForegroundColor $Cyan
 Write-Host "🌐 Services:" -ForegroundColor $Cyan
-Write-Host "   MinIO Console:  http://localhost:9001 (minioadmin/minioadmin)" -ForegroundColor $White
+Write-Host "   SeaweedFS S3:   http://localhost:8333" -ForegroundColor $White
 Write-Host "   Spark UI:       http://localhost:8080" -ForegroundColor $White
 Write-Host "   Polaris API:    http://localhost:8181" -ForegroundColor $White
 Write-Host "   Thrift Server:  localhost:10000" -ForegroundColor $White
