@@ -2,9 +2,9 @@
   "version": "10",
   "aliases": {
     "local": {
-      "url": "http://minio:9000",
-      "accessKey": "minioadmin",
-      "secretKey": "minioadmin",
+      "url": "http://seaweedfs:8333",
+      "accessKey": "seaweedadmin",
+      "secretKey": "seaweedadmin",
       "api": "S3v4",
       "path": "auto"
     }

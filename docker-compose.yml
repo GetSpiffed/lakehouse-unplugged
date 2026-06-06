@@ -2,46 +2,30 @@ name: lakehouse-unplugged
 
 services:
   # ======================================================================
-  # 🗄️ MinIO – lokale S3 opslag
+  # 🗄️ SeaweedFS mini – lokale S3-compatible opslag (proof-of-concept)
   # ======================================================================
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    env_file:
-      - ./.env
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - lakehouse
-
-  minio-setup:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.29
+    command: ["mini", "-dir=/data"]
     env_file:
       - ./.env
     environment:
-      MC_CONFIG_DIR: /tmp/.mc
-    entrypoint: ["sh","-c"]
-    command: >
-      set -e;
-      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 1; done;
-      mc mb -p local/warehouse || true;
-      mc mb -p local/warehouse/landing || true;
-      # Maak het Iceberg warehouse prefix "echt" (S3 heeft geen folders zonder object)
-      printf "" | mc pipe local/warehouse/iceberg/.keep >/dev/null;
-      mc ls local/warehouse || true;
-      echo minio-setup done
-    restart: "no"
+      S3_BUCKET: warehouse
+    ports:
+      - "8333:8333"
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS --aws-sigv4 "aws:amz:$${AWS_REGION}:s3"
+          --user "$${AWS_ACCESS_KEY_ID}:$${AWS_SECRET_ACCESS_KEY}"
+          http://localhost:8333/ >/dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
     networks:
       - lakehouse
 
@@ -72,10 +56,8 @@ services:
     depends_on:
       polaris-db:
         condition: service_healthy
-      minio:
+      seaweedfs:
         condition: service_healthy
-      minio-setup:
-        condition: service_completed_successfully
     platform: linux/amd64
     container_name: polaris
     env_file:
@@ -86,10 +68,10 @@ services:
       timeout: 5s
       retries: 10
     environment:
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      AWS_REGION: dummy # Polaris expects a region but MinIO ignores it; keep dummy to preserve existing behavior.
-      AWS_ENDPOINT_URL_S3: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ENDPOINT_URL_S3: ${S3_ENDPOINT}
       POLARIS_CATALOG_WAREHOUSE: s3://warehouse
 
       POLARIS_BOOTSTRAP_CREDENTIALS: "POLARIS,admin,password"
@@ -118,14 +100,12 @@ services:
       - ./.env
     environment:
       POLARIS_BASE: http://polaris:8181
-      MINIO_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: ${S3_ENDPOINT}
     depends_on:
       polaris:
         condition: service_healthy
-      minio:
+      seaweedfs:
         condition: service_healthy
-      minio-setup:
-        condition: service_completed_successfully
     networks:
       - lakehouse
 
@@ -166,10 +146,8 @@ services:
     depends_on:
       spark-base-builder:
         condition: service_completed_successfully
-      minio:
+      seaweedfs:
         condition: service_healthy
-      minio-setup:
-        condition: service_completed_successfully
     env_file:
       - ./.env
     environment:
@@ -214,8 +192,8 @@ services:
         condition: service_started
       spark-worker:
         condition: service_started
-      minio-setup:
-        condition: service_completed_successfully
+      seaweedfs:
+        condition: service_healthy
       polaris:
         condition: service_healthy
     env_file:
@@ -256,8 +234,10 @@ services:
       retries: 10
       start_period: 30s      
     depends_on:
-      - polaris
-      - minio
+      polaris:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
     networks:
       - lakehouse
 
@@ -278,10 +258,8 @@ services:
         condition: service_started
       spark-worker:
         condition: service_started
-      minio:
+      seaweedfs:
         condition: service_healthy
-      minio-setup:
-        condition: service_completed_successfully
       polaris:
         condition: service_healthy
     env_file:
@@ -313,7 +291,7 @@ services:
     command: sleep infinity
   
     depends_on:
-      minio:
+      seaweedfs:
         condition: service_healthy
       polaris:
         condition: service_healthy
@@ -329,7 +307,7 @@ services:
     environment:
       JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
       SPARK_MASTER: spark://spark-master:7077
-      MINIO_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: ${S3_ENDPOINT}
   
     volumes:
       - .:/workspace
@@ -456,7 +434,7 @@ services:
       - lakehouse
 
 volumes:
-  minio-data:
+  seaweedfs-data:
   trino-data:
   airflow-db-data:
   polaris-db-data:
