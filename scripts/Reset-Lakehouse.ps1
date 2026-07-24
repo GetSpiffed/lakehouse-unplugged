@@ -213,7 +213,8 @@ Write-Host "`n----------------------------------------------------" -ForegroundC
 Write-Host "✅ Lakehouse-Unplugged stack is ready!" -ForegroundColor $Green
 Write-Host "----------------------------------------------------" -ForegroundColor $Cyan
 Write-Host "🌐 Services:" -ForegroundColor $Cyan
-Write-Host "   SeaweedFS S3:   http://localhost:8333" -ForegroundColor $White
+Write-Host "   SeaweedFS UI:   http://localhost:8887" -ForegroundColor $White
+Write-Host "   SeaweedFS S3:   http://localhost:8333 (API, requires authentication)" -ForegroundColor $White
 Write-Host "   Spark UI:       http://localhost:8080" -ForegroundColor $White
 Write-Host "   Polaris API:    http://localhost:8181" -ForegroundColor $White
 Write-Host "   Thrift Server:  localhost:10000" -ForegroundColor $White

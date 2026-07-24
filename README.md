@@ -1,372 +1,270 @@
 # Lakehouse Unplugged
 
-Hands-on playground for an **open lakehouse stack** with Apache Spark, Apache Iceberg, SeaweedFS, dbt, Jupyter, Polaris, and Trino.
-The focus is on **understanding how the components fit together**, with a setup that works today and can evolve as the stack matures.
+Lakehouse Unplugged is a laptop-first playground for learning how an open
+lakehouse fits together. It combines Apache Spark, Apache Iceberg, Apache
+Polaris, SeaweedFS, dbt, JupyterLab, Trino, and an experimental Airflow setup
+in one Docker Compose stack.
 
-> **Project Status (2026)**
-> Spark writes Iceberg tables via the Polaris REST catalog (default).
-> Polaris provides the Iceberg REST catalog and governance layer.
-> dbt is up and running, with models for Silver and Gold.
-> Jupyter works against Spark for interactive development and testing.
-> Trino uses Polaris for read-only analytics.
-> Airflow services are included but **not yet functionally integrated** (work in progress).
-> A filesystem/Hadoop fallback is available if needed.
->
-> **Storage proof-of-concept:** object storage runs as one SeaweedFS `mini` service. This single-node local setup is intended for development and migration validation, not production.
-> 
-> Together this forms a laptop-first, fully working end-to-end stack.
-> Future improvements are described in the “Future extensions” paragraph.
+The default architecture is:
 
----
+```mermaid
+flowchart LR
+    subgraph development["Development & transformations"]
+        jupyter["JupyterLab<br/>PySpark notebooks"]
+        dbt["dbt<br/>Silver & Gold models"]
+    end
 
-## What do you build here?
+    subgraph compute["Compute & query"]
+        spark["Apache Spark<br/>Master + Worker"]
+        thrift["Spark Thrift Server"]
+        trino["Trino<br/>read-only analytics"]
+    end
 
-- Docker Compose stack with:
-  - SeaweedFS
-  - Spark (master/worker)
-  - Spark Thrift Server (for dbt)
-  - Polaris Catalog
-  - Trino
-  - JupyterLab
-  - dbt runner (scheduled runs)
-  - VS Code devcontainer
-  - Airflow services (work in progress)
-- Iceberg-ready object storage on SeaweedFS (`warehouse` bucket created automatically)
-- Example notebooks and dbt models (bronze → silver → gold)
-- Feature flag to switch Spark between Polaris REST and filesystem mode
+    subgraph catalog["Catalog & governance"]
+        polaris["Apache Polaris<br/>Iceberg REST catalog"]
+        postgres[("PostgreSQL<br/>catalog state")]
+    end
 
----
+    subgraph storage["Object storage"]
+        seaweed[("SeaweedFS<br/>warehouse bucket")]
+    end
 
-## Architecture overview
+    jupyter -->|"Spark jobs"| spark
+    dbt -->|"JDBC / Thrift"| thrift
+    thrift --> spark
 
-All services run in a single Docker network.
+    spark -->|"Catalog metadata · REST"| polaris
+    trino -->|"Catalog metadata · REST"| polaris
+    polaris -->|"Persists state"| postgres
 
-- **dbt**
-  - Scheduled runs via the **dbt service** (Spark Thrift JDBC)
-  - Development/authoring via **dbt in the devcontainer**
+    spark -->|"Read/write Iceberg data · S3"| seaweed
+    trino -->|"Read Iceberg data · S3"| seaweed
 
-- **Spark**
-  - ETL, dbt, data creation
-  - Iceberg via **Polaris REST catalog** (default)
-  - Writes to `s3://warehouse/` with Iceberg S3FileIO
+    classDef client fill:#e8f1ff,stroke:#2563eb,color:#172554
+    classDef engine fill:#ecfdf5,stroke:#059669,color:#064e3b
+    classDef metadata fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+    classDef data fill:#f5f3ff,stroke:#7c3aed,color:#3b0764
 
-- **Polaris**
-  - Iceberg REST catalog
-  - Principals, roles, catalog metadata
-  - Governance layer for catalog access
-
-- **Trino**
-  - SQL analytics
-  - Reads Iceberg tables **via Polaris REST** (read-only)
-
-- **Airflow**
-  - Services present but **not yet functionally integrated** (work in progress)
-
-### Architecture sketch
-
-```
-                   Host (VS Code / CLI / Browser)
-                                |
-                         VS Code / Ports
-                                |
-                        +----------------+
-                        | Devcontainer   |
-                        | /workspace    |
-                        +--------+-------+
-                                 |
-    ---------------------------------------------------------
-    Docker Compose Network
-    ---------------------------------------------------------
-
-    +------------------+        JDBC       +------------------+
-    | dbt Runner       | <---------------> | Spark Thrift     |
-    | (scheduled runs) |                   +------------------+
-    +------------------+                             |
-                                                     |
-    +------------------+                             |
-    | Airflow          |                             |
-    | (WIP)            |                             |
-    +------------------+                             |
-                                                     |
-                                                     | Spark SQL
-                                                     v
-    +------------------+                    +------------------+
-    | JupyterLab       | <----------------> | Spark Master     |
-    +------------------+                    +--------+---------+
-                                                     |
-                                              +------v------+
-                                              | Spark Worker|
-                                              +-------------+
-                                                     |
-                                                     | S3A / S3FileIO
-    +------------------+                    +--------v--------+
-    | Polaris Catalog  | <---- REST ------- | Iceberg Tables  |
-    | (governance)     |                    | on SeaweedFS   |
-    +------------------+                    +--------+--------+
-              |                                      |
-              |                               +------v------+
-              | REST                          | SeaweedFS   |
-              |                               +-------------+
-              v
-    +------------------+
-    | Trino            |
-    | (read-only SQL)  |
-    +--------+---------+
+    class jupyter,dbt client
+    class spark,thrift,trino engine
+    class polaris,postgres metadata
+    class seaweed data
 ```
 
----
+> This repository is intended for local development, learning, and migration
+> validation. SeaweedFS runs in single-node `mini` mode and the default
+> credentials are development credentials. Do not use this setup as-is in
+> production.
 
-## Why keep a filesystem fallback?
+## What is included?
 
-Polaris is the default path for Spark writes, but a filesystem/Hadoop fallback is available for recovery or troubleshooting:
-
-- **Spark → Polaris REST catalog → Iceberg** (default read/write)
-- **Spark → filesystem (S3A) → Iceberg** (explicit fallback)
-- **Trino → Polaris → Iceberg** (read-only)
-
-This keeps Polaris as the source of truth for catalog metadata while preserving a reliable fallback option.
-
----
-
-## Feature flag for Spark (filesystem vs Polaris)
-
-The stack supports an explicit switch:
-
-```bash
-SPARK_CATALOG_MODE=polaris      # default (REST catalog)
-# or
-SPARK_CATALOG_MODE=filesystem   # fallback (direct filesystem)
-```
-
-- Set per Spark service
-- Selects the correct `spark-defaults.conf` at startup
-- Allows fallback without rebuilding the stack
-
----
-
-## Spark S3A support (SeaweedFS)
-
-- The Hadoop version is detected during image build (via `spark-submit --version`).
-- The build adds these JARs to `/opt/spark/jars`:
-  - `hadoop-aws-${HADOOP_VERSION}.jar`
-  - `aws-java-sdk-bundle-1.12.x.jar`
-
-Example:
-
-```python
-spark.read.json("s3a://warehouse/landing/file.json")
-```
-
-**Landing zone vs Iceberg/Polaris**
-
-- Landing zone reads: `s3a://...` (Hadoop S3A)
-- Iceberg/Polaris warehouse: `s3://...` with `S3FileIO` (iceberg-aws-bundle)
-- Don’t see `polaris` in `SHOW CATALOGS`? Restart the kernel or recreate the Jupyter service.
-
----
-
-## Python version alignment
-
-Spark executors and drivers use Python 3.11 via `/opt/py311`.
-
-```bash
-docker compose exec spark-worker bash -lc "/opt/py311/bin/python --version"
-docker compose exec spark-master bash -lc "echo $PYSPARK_PYTHON"
-```
-
----
-
-## Polaris Spark check
-
-Run this in a PySpark notebook/JupyterLab:
-
-```python
-print("spark.jars.packages =", spark.conf.get("spark.jars.packages", ""))
-print("spark.sql.defaultCatalog =", spark.conf.get("spark.sql.defaultCatalog", ""))
-print("spark.range(1).count() =", spark.range(1).count())
-```
-
----
-
-## Services at a glance
-
-- **SeaweedFS** – S3-compatible storage
-- **Spark Master / Worker** – ETL and data creation
-- **Spark Thrift Server** – JDBC endpoint for dbt
-- **Polaris** – Iceberg REST catalog and governance
-- **Trino** – Read-only SQL analytics
-- **JupyterLab** – PySpark notebooks
-- **dbt** – Transformations (bronze → silver → gold)
-- **dbt in devcontainer** – Development/authoring environment
-- **VS Code devcontainer** – Development environment
-- **Airflow** – Work in progress (services present, not yet integrated)
-
----
-
-## Version baseline (May 2026)
-
-Current pinned baseline in this repo:
-
-- **Apache Polaris**: `1.5.0`
-- **Apache Spark**: `3.5.1`
-- **Apache Iceberg runtime (Spark JARs)**: `1.10.0`
-- **Trino**: `480`
-- **SeaweedFS**: `4.29` (`mini` mode)
-
-Notes:
-
-- Polaris `1.6` is not an available Apache Polaris release at the time of writing; this stack targets `1.5.0` as the current Polaris baseline.
-- This baseline keeps Polaris and Trino on actively maintained versions and keeps Spark + Iceberg aligned with the existing Spark 3.5 setup in this stack.
-
----
+| Component | Purpose | Status |
+|---|---|---|
+| SeaweedFS | S3-compatible object storage | Working, single-node proof of concept |
+| Spark master and worker | ETL and distributed processing | Working |
+| Spark Thrift Server | JDBC/Thrift endpoint for dbt | Working |
+| Polaris | Iceberg REST catalog and governance | Working |
+| Polaris UI | Read-only view of Polaris resources | Working |
+| JupyterLab | Interactive PySpark development | Working |
+| dbt | Silver and Gold transformations through Spark | Working |
+| Trino | Read-only SQL analytics through Polaris | Working |
+| VS Code devcontainer | Development and dbt authoring environment | Working |
+| Airflow and Cosmos | Orchestration experiment | Work in progress |
 
 ## Prerequisites
 
-- Docker Desktop / Engine (Compose v2)
-- ±6 GB RAM, 4 CPU cores
-- macOS, Linux, or Windows 11 (WSL2)
+- Docker Desktop or Docker Engine with Docker Compose v2
 - Git
-- Browser
-
----
+- A browser
+- Approximately 6 GB of available memory and 4 CPU cores
+- macOS, Linux, or Windows 11 with WSL2
+- VS Code with the Dev Containers extension if you want to use the
+  devcontainer workflow
 
 ## Quick start
 
+### 1. Clone the repository
+
 ```bash
-git clone https://github.com/<org>/lakehouse-unplugged.git
+git clone https://github.com/GetSpiffed/lakehouse-unplugged.git
 cd lakehouse-unplugged
-docker compose up -d --build
 ```
 
-## dbt: run & develop
+### 2. Build the images in the correct order
 
-The Thrift Server bootstraps `polaris.default`, so dbt can connect without manual namespace setup.
-
-### Development in the devcontainer (VS Code terminal)
-
-Use this for development and authoring with dbt inside the VS Code devcontainer.
-
-By default, dbt writes to the `silver` and `gold` schemas (or the values from
-`DBT_SILVER_SCHEMA` / `DBT_GOLD_SCHEMA`) without adding the `DBT_SCHEMA` prefix. The
-`dbt/macros/generate_schema_name.sql` macro controls this behavior by returning the
-explicit schema name when one is configured and falling back to the target schema
-otherwise.
-
-1. Start the stack (from your host shell):
+The Jupyter image uses the repository's local Spark base image in its `FROM`
+instruction. Build that base image before building the other project images:
 
 ```bash
-docker compose up -d --build
+# Build lakehouse-unplugged-spark-base:latest first
+docker compose build spark-base-builder
+
+# Build Jupyter and the other repository-owned images
+docker compose build
 ```
 
-2. Open the repo in VS Code and **Reopen in Container** (Command Palette → “Dev Containers: Reopen in Container”).
+The first build downloads several images, packages, and JAR files and can take
+a while. Later builds normally reuse Docker's layer cache.
 
-3. In the VS Code terminal (inside the devcontainer), run:
+### 3. Start the stack
+
+```bash
+docker compose up -d
+```
+
+Check the startup status:
+
+```bash
+docker compose ps
+```
+
+Some services wait for SeaweedFS or Polaris to become healthy. If a service is
+still starting, inspect its logs:
+
+```bash
+docker compose logs -f <service-name>
+```
+
+### 4. Open the user interfaces
+
+| Service | Endpoint | Notes |
+|---|---|---|
+| Polaris UI | http://localhost:3000 | Read-only UI |
+| SeaweedFS Filer UI | http://localhost:8887 | Browse stored files |
+| SeaweedFS Master UI | http://localhost:9333 | Cluster status |
+| Spark Master UI | http://localhost:8080 | Spark applications and workers |
+| Spark Worker UI | http://localhost:8081 | Worker status |
+| JupyterLab | http://localhost:8888 | No token in this local setup |
+| Trino UI | http://localhost:8088 | Query status |
+| Airflow UI | http://localhost:8089 | `admin` / `admin`; work in progress |
+| Polaris API | http://localhost:8181 | REST API |
+| Polaris health | http://localhost:8182/q/health | Health endpoint |
+| SeaweedFS S3 API | http://localhost:8333 | Authenticated API, not a UI |
+| Spark Thrift Server | `jdbc:hive2://localhost:10000` | JDBC endpoint for dbt and SQL clients |
+
+Opening `http://localhost:8333` directly in a browser returns an
+`AccessDenied` XML response. That is expected: it is an S3 API and its requests
+must be signed with the AWS credentials from `.env`. Use the Filer UI on port
+`8887` to browse the files.
+
+## First checks
+
+These checks confirm that the main path through the stack is working.
+
+### Run the dbt smoke test
+
+The `dbt` service stays running as a command environment. Execute dbt inside
+that container:
+
+```bash
+docker compose exec dbt dbt debug
+docker compose exec dbt dbt run --select smoke
+docker compose exec dbt dbt test --select smoke
+```
+
+The Thrift Server creates `polaris.default` during startup, so no manual
+namespace setup is required.
+
+### Check Polaris from Spark
+
+```bash
+docker compose exec spark-master bash -lc \
+  "/opt/spark/bin/spark-sql -e 'SHOW CATALOGS'"
+```
+
+### Query with Trino
+
+```bash
+docker compose exec trino trino \
+  --execute "SHOW SCHEMAS FROM polaris;"
+```
+
+Trino is intentionally configured for read-only analytics in this project.
+
+## Development workflows
+
+### Jupyter notebooks
+
+Notebooks run in the dedicated `jupyter` service, not in the devcontainer.
+Open http://localhost:8888 and start with:
+
+```text
+src/notebooks/00_setup_and_test.ipynb
+```
+
+The notebook is mounted from the repository, connects to
+`spark://spark-master:7077`, and uses the same Polaris and SeaweedFS
+configuration as the Spark services.
+
+If the `polaris` catalog is missing from an existing notebook session, restart
+the kernel or recreate Jupyter:
+
+```bash
+docker compose up -d --force-recreate jupyter
+```
+
+### dbt in the VS Code devcontainer
+
+Use this route for model development and authoring:
+
+1. Start the stack with `docker compose up -d`.
+2. Open the repository in VS Code.
+3. Run **Dev Containers: Reopen in Container** from the Command Palette.
+4. In the devcontainer terminal, run:
 
 ```bash
 cd /workspace/dbt
 dbt deps
 dbt debug
-dbt run -s smoke
-dbt test -s smoke
+dbt run --select smoke
+dbt test --select smoke
 ```
 
-#### Silver & Gold models (VS Code terminal)
+The profile in `dbt/profiles.yml` connects to `thrift-server:10000`.
+Restart the devcontainer after changing connection-related environment
+settings.
+
+By default, the project writes models to the `silver` and `gold` namespaces.
+`dbt/macros/generate_schema_name.sql` uses the explicitly configured schema
+without adding the target schema as a prefix.
+
+Run the transformation layers with:
 
 ```bash
-dbt run  --select silver --full-refresh
+dbt run --select silver --full-refresh
 dbt test --select silver --indirect-selection=empty
 
-dbt run  --select gold --full-refresh
+dbt run --select gold --full-refresh
 dbt test --select gold
 ```
 
-The devcontainer uses `dbt/profiles.yml` and connects to the Spark Thrift Server at `spark-thrift:10000`.
-If you update `profiles.yml`, restart the devcontainer to pick up changes.
+### dbt from the host
 
-### Scheduled runs via the dbt container (PowerShell window)
-
-Use the **dbt service** for scheduled runs (outside the devcontainer).
+If you do not need the devcontainer, run the same commands in the existing dbt
+container:
 
 ```bash
-docker compose up -d --build
-docker compose run --rm dbt debug
-docker compose run --rm dbt run -s smoke
-docker compose run --rm dbt test -s smoke
+docker compose exec dbt dbt debug
+docker compose exec dbt dbt ls
+docker compose exec dbt dbt run --select silver --full-refresh
+docker compose exec dbt dbt test --select silver --indirect-selection=empty
+docker compose exec dbt dbt run --select gold --full-refresh
+docker compose exec dbt dbt test --select gold
 ```
 
-#### Silver & Gold models (PowerShell window)
+### Trino
+
+You can use the Trino CLI inside its container:
 
 ```bash
-docker compose run --rm dbt run  --select silver --full-refresh
-docker compose run --rm dbt test --select silver --indirect-selection=empty
+docker compose exec trino trino \
+  --execute "SHOW TABLES FROM polaris.bronze;"
 
-docker compose run --rm dbt run  --select gold --full-refresh
-docker compose run --rm dbt test --select gold
+docker compose exec trino trino \
+  --execute "SELECT * FROM polaris.bronze.gekentekendevoertuigen LIMIT 10;"
 ```
 
-## Notebooks
-
-Notebooks run through the **jupyter** service (not the dev container).
-
-```bash
-docker compose up -d jupyter
-```
-
-Register Jupyter kernel in vscode with this url: http://localhost:8888
-
-### Polaris bootstrap validation
-
-```bash
-docker compose up -d polaris seaweedfs polaris-bootstrap
-docker compose logs -f polaris-bootstrap
-docker compose exec spark-master bash -lc "/opt/spark/bin/spark-sql -e 'SHOW CATALOGS'"
-```
-
-Stop:
-
-```bash
-docker compose down
-```
-
-Full reset:
-
-```bash
-docker compose down -v
-```
-
----
-
-## Endpoints
-
-| Service           | URL                            |
-|-------------------|--------------------------------|
-| SeaweedFS S3 API      | http://localhost:8333          |
-| Polaris API       | http://localhost:8181          |
-| Polaris Health    | http://localhost:8182/q/health |
-| Spark Master UI   | http://localhost:8080          |
-| Spark Worker UI   | http://localhost:8081          |
-| Spark Thrift      | localhost:10000                |
-| JupyterLab        | http://localhost:8888          |
-| Trino UI          | http://localhost:8088          |
-
----
-
-## Data & workflows
-
-- Sample data in `data/`
-- Iceberg tables in `s3://warehouse/`
-- dbt models from bronze to gold
-
-```Powershell
-docker compose run --rm dbt debug
-docker compose run --rm dbt ls
-docker compose run --rm dbt run -s +smoke
-docker compose run --rm dbt test -s smoke
-```
-
----
-
-## Working with Trino
+Equivalent SQL:
 
 ```sql
 SHOW SCHEMAS FROM polaris;
@@ -374,111 +272,236 @@ SHOW TABLES FROM polaris.default;
 SELECT * FROM polaris.default.your_table LIMIT 10;
 ```
 
-```bash
-docker compose exec trino trino --execute "SHOW SCHEMAS FROM polaris;"
-docker compose exec trino trino --execute "SHOW TABLES FROM polaris.bronze;"
-docker compose exec trino trino --execute "SELECT * FROM polaris.bronze.gekentekendevoertuigen LIMIT 10;"
-```
+### Airflow
 
-Trino is intentionally **read-only** in this setup.
+Airflow and Cosmos are included as a work in progress and are not yet
+functionally integrated into the end-to-end workflow. When the full stack is
+running, the UI is available at http://localhost:8089 with `admin` / `admin`.
 
----
-
-## Future extensions
-
-- Polaris credential delegation & fine-grained access policies
-- Orchestration with Cosmos (Astronomer)
-- Metadata & lineage with OpenMetadata
-- Data quality tooling (Great Expectations / Soda)
-- DuckDB for local analytics and CI checks
-
----
-
-## Run dbt in container
-
-The **dbt service** is intended for **scheduled runs**. For development and authoring,
-use **dbt inside the devcontainer**.
-
-```powershell
-docker compose run --rm dbt debug
-docker compose run --rm dbt run
-docker compose run --rm dbt test
-```
-
-## Start Airflow
+To start only the Airflow services:
 
 ```bash
-docker compose up -d airflow-db airflow-init airflow-webserver airflow-scheduler airflow-triggerer
+docker compose up -d \
+  airflow-db airflow-init airflow-webserver airflow-scheduler airflow-triggerer
 ```
 
-Airflow is still **work in progress**: the services are present but not yet functionally integrated.
+## How the architecture fits together
 
-Airflow UI: http://localhost:8089 (admin/admin)
+All services communicate through the `lakehouse` Docker network.
 
-## Project structure
+- **Spark** performs processing and writes Iceberg tables.
+- **Polaris** is the default catalog and source of truth for Iceberg metadata,
+  namespaces, roles, and catalog access.
+- **SeaweedFS** stores the Iceberg data files in the `warehouse` bucket.
+- **dbt** sends SQL to the Spark Thrift Server and builds the Silver and Gold
+  layers.
+- **JupyterLab** provides an interactive Spark driver for experiments and
+  notebook-based development.
+- **Trino** reads the Iceberg tables through Polaris.
+- **The devcontainer** contains development tools and dbt, but no separate
+  Spark installation.
 
+### Storage paths
+
+Two URI schemes are used deliberately:
+
+- Landing-zone or direct filesystem access uses `s3a://...` through Hadoop
+  S3A.
+- Iceberg tables managed through Polaris use `s3://...` through Iceberg
+  `S3FileIO`.
+
+Example direct read:
+
+```python
+spark.read.json("s3a://warehouse/landing/file.json")
 ```
-.
-|-- .devcontainer/
-|-- data/
-|-- dbt/
-|-- docker/
-|-- docker-compose.yml
-|-- src/notebooks/
-|-- .env
-`-- README.md
+
+The shared Spark image contains the matching Iceberg runtime, AWS bundle,
+`hadoop-aws`, and AWS SDK JARs.
+
+### Polaris and filesystem catalog modes
+
+Polaris is the default:
+
+```text
+Spark → Polaris REST catalog → Iceberg data on SeaweedFS
+Trino → Polaris REST catalog → Iceberg data on SeaweedFS
 ```
 
----
+A Hadoop filesystem catalog remains available for troubleshooting:
 
-## Polaris Read-Only UI
+```text
+Spark → Hadoop catalog → Iceberg data on SeaweedFS
+```
 
-A new service `polaris-ui` is included as a **read-only** web application built with Next.js + TypeScript.
+Set `SPARK_CATALOG_MODE` to `polaris` or `filesystem` for the relevant Spark
+services in `docker-compose.yml`, then recreate them:
 
-### Starten
+```bash
+docker compose up -d --force-recreate \
+  spark-master spark-worker thrift-server jupyter
+```
+
+Changing catalog mode does not require rebuilding the image.
+
+## Docker image layering
+
+The repository has one important local image dependency:
+
+```text
+apache/spark:3.5.1
+└── lakehouse-unplugged-spark-base:latest
+    ├── spark-master
+    ├── spark-worker
+    ├── thrift-server
+    └── lakehouse-unplugged-jupyter:latest
+```
+
+`spark-base-builder` adds Java, Python 3.11, Spark configuration, Iceberg, and
+the S3-related JARs to the upstream Spark image. Spark master, worker, and
+Thrift Server use this image directly. Jupyter builds an extra layer on top
+with JupyterLab and its Python kernel.
+
+The dbt, devcontainer, Polaris bootstrap, Polaris UI, and Airflow images use
+their own upstream base images. All Airflow runtime services reuse
+`lakehouse-unplugged-airflow:latest`, which is built through `airflow-init`.
+
+After changing `docker/spark-base/`, rebuild both the base and its derived
+Jupyter image:
+
+```bash
+docker compose build spark-base-builder
+docker compose build jupyter
+docker compose up -d --force-recreate \
+  spark-master spark-worker thrift-server jupyter
+```
+
+## Polaris read-only UI
+
+The `polaris-ui` service is a Next.js application that makes server-side,
+read-only resource requests to Polaris. The UI offers no actions that create,
+change, or delete Polaris resources. Its backend only uses `POST` to obtain an
+OAuth token.
+
+Start or rebuild only this service with:
 
 ```bash
 docker compose up -d --build polaris-ui
 ```
 
-Open in browser:
+Inside the Compose network, the UI uses
+`POLARIS_BASE_URL=http://polaris:8181` together with `POLARIS_CLIENT_ID` and
+`POLARIS_CLIENT_SECRET` from `.env`. Depending on the Polaris configuration,
+individual management endpoints can return `401`, `403`, or `404`; the UI
+presents these as read-only error states.
 
-- http://localhost:3000
+The endpoint mapping is defined in
+`docker/polaris-ui/src/lib/polaris.ts`.
 
-### Environment variables
+## Common operations
 
-`polaris-ui` is configurable through environment variables (in `.env` or shell):
+### Show status and logs
 
-- `POLARIS_BASE_URL` (default: `http://polaris:8181`)  
-  Internal URL used by the server-side proxy.
-- `POLARIS_API_USER` (optional)  
-  Basic auth username for Polaris management endpoints.
-- `POLARIS_API_PASSWORD` (optional)  
-  Basic auth password for Polaris management endpoints.
-- `POLARIS_API_BEARER_TOKEN` (optional)  
-  Bearer token (takes precedence over basic auth when set).
+```bash
+docker compose ps
+docker compose logs --tail 100
+docker compose logs -f <service-name>
+```
 
-### Gebruikte Polaris endpoints (eerste mapping)
+### Stop and restart
 
-The UI calls its own backend route (`/api/polaris/...`), which in turn does **server-side GET** calls to Polaris.
+Stop the containers while retaining all named-volume data:
 
-Configured endpoint mapping in this first version:
+```bash
+docker compose down
+```
 
-- `/api/management/v1/catalogs`
-- `/api/management/v1/principals`
-- `/api/management/v1/principal-roles`
-- `/api/management/v1/catalog-roles`
-- `/api/management/v1/grants`
-- `/api/management/v1/principal-role-bindings`
-- `/api/management/v1/catalog-role-bindings`
-- `/api/catalog/v1/namespaces`
-- `/api/catalog/v1/tables`
+Start them again:
 
-If your Polaris version/exposure differs, adjust the endpoint map in `polaris-ui/src/lib/polaris.ts`.
+```bash
+docker compose up -d
+```
 
-### Beperkingen
+### Full reset
 
-- UI is intentionally **read-only**: no POST/PUT/PATCH/DELETE is implemented.
-- Data availability depends on enabled Polaris APIs and auth setup.
-- Some endpoints may return 404/401/403 depending on Polaris configuration.
-- The UI shows friendly errors when Polaris is unreachable or an endpoint is missing.
+This removes the containers and all named volumes, including SeaweedFS,
+Polaris, Trino, and Airflow data:
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+On Windows, `scripts/Reset-Lakehouse.ps1` provides a guided reset flow. Review
+its options before using it when you want to retain existing data.
+
+### Additional validation
+
+Check the Python version shared by the Spark driver and executors:
+
+```bash
+docker compose exec spark-worker \
+  bash -lc "/opt/py311/bin/python --version"
+
+docker compose exec spark-master \
+  bash -lc 'echo "$PYSPARK_PYTHON"'
+```
+
+In a PySpark notebook:
+
+```python
+print("default catalog =", spark.conf.get("spark.sql.defaultCatalog", ""))
+print("range count =", spark.range(1).count())
+```
+
+## Configuration
+
+Local defaults are stored in `.env`. Important settings include:
+
+| Variable | Default purpose |
+|---|---|
+| `S3_ENDPOINT` | Internal SeaweedFS S3 endpoint |
+| `S3_BUCKET` | Object-storage bucket |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Local S3 credentials |
+| `POLARIS_CLIENT_ID` / `POLARIS_CLIENT_SECRET` | Local Polaris credentials |
+| `POLARIS_URI` | Internal Polaris catalog endpoint |
+| `ICEBERG_WAREHOUSE` | Iceberg data location |
+| `HADOOP_VERSION` / `AWS_SDK_VERSION` | Spark base-image build versions |
+
+The checked-in values are local development defaults. Replace them for any
+shared or externally accessible environment.
+
+## Project structure
+
+```text
+.
+├── .devcontainer/        # VS Code devcontainer configuration
+├── airflow/dags/         # Experimental Airflow DAGs
+├── data/                 # Sample source data
+├── dbt/                  # dbt project, models, macros, and profile
+├── docker/               # Dockerfiles and service configuration
+├── scripts/              # Validation and reset helpers
+├── src/notebooks/        # Jupyter notebooks
+├── .env                  # Local development settings
+├── docker-compose.yml    # Complete local stack
+└── README.md
+```
+
+## Version baseline
+
+The repository currently pins:
+
+- Apache Polaris `1.5.0`
+- Apache Spark `3.5.1`
+- Apache Iceberg runtime `1.10.0`
+- Trino `480`
+- SeaweedFS `4.29`
+- Python `3.11` for Spark drivers and executors
+
+## Future extensions
+
+- Complete Airflow/Cosmos orchestration
+- Polaris credential delegation and fine-grained policies
+- Metadata and lineage with OpenMetadata
+- Data quality tooling such as Great Expectations or Soda
+- DuckDB-based local analytics and CI checks

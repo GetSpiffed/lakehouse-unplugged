@@ -12,7 +12,9 @@ services:
     environment:
       S3_BUCKET: warehouse
     ports:
-      - "8333:8333"
+      - "8333:8333"  # S3 API (requires AWS authentication; not a browser UI)
+      - "8887:8888"  # Filer UI (host 8887 avoids conflict with Jupyter on 8888)
+      - "9333:9333"  # Master UI
     volumes:
       - seaweedfs-data:/data
     healthcheck:
@@ -137,12 +139,14 @@ services:
         HADOOP_VERSION: ${HADOOP_VERSION:-3.3.4}
         AWS_SDK_VERSION: ${AWS_SDK_VERSION:-1.12.783}
     image: lakehouse-unplugged-spark-base:latest
+    pull_policy: never
     command: ["true"]
     networks:
       - lakehouse
 
   spark-master:
     image: lakehouse-unplugged-spark-base:latest
+    pull_policy: never
     depends_on:
       spark-base-builder:
         condition: service_completed_successfully
@@ -165,6 +169,7 @@ services:
 
   spark-worker:
     image: lakehouse-unplugged-spark-base:latest
+    pull_policy: never
     depends_on:
       spark-master:
         condition: service_started
@@ -187,6 +192,7 @@ services:
 
   thrift-server:
     image: lakehouse-unplugged-spark-base:latest
+    pull_policy: never
     depends_on:
       spark-master:
         condition: service_started
@@ -357,6 +363,7 @@ services:
     build:
       context: ./docker/airflow
     image: lakehouse-unplugged-airflow:latest
+    pull_policy: never
     depends_on:
       airflow-db:
         condition: service_started
@@ -378,6 +385,7 @@ services:
 
   airflow-webserver:
     image: lakehouse-unplugged-airflow:latest
+    pull_policy: never
     depends_on:
       airflow-init:
         condition: service_completed_successfully
@@ -400,6 +408,7 @@ services:
 
   airflow-scheduler:
     image: lakehouse-unplugged-airflow:latest
+    pull_policy: never
     depends_on:
       airflow-init:
         condition: service_completed_successfully
@@ -419,6 +428,7 @@ services:
 
   airflow-triggerer:
     image: lakehouse-unplugged-airflow:latest
+    pull_policy: never
     depends_on:
       airflow-init:
         condition: service_completed_successfully
