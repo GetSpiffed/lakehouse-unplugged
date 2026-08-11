@@ -2,9 +2,9 @@
   "version": "10",
   "aliases": {
     "local": {
-      "url": "http://seaweedfs:8333",
-      "accessKey": "seaweedadmin",
-      "secretKey": "seaweedadmin",
+      "url": "http://rustfs:9000",
+      "accessKey": "lakehouseadmin",
+      "secretKey": "lakehouseadmin",
       "api": "S3v4",
       "path": "auto"
     }

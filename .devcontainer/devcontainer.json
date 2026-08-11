@@ -12,7 +12,7 @@
   "remoteEnv": {
     "DOCKER_HOST": "unix:///var/run/docker.sock",
     "SPARK_MASTER": "spark://spark-master:7077",
-    "S3_ENDPOINT": "http://seaweedfs:8333",
+    "S3_ENDPOINT": "http://rustfs:9000",
     "POLARIS_URI": "http://polaris:8181",
     "DBT_PROFILES_DIR": "/workspace/dbt",
     "POLARIS_CLIENT_ID": "${localEnv:POLARIS_CLIENT_ID}",

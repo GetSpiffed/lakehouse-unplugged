@@ -2,7 +2,7 @@
   config(
     materialized='table',
     file_format='iceberg',
-    pre_hook=["CREATE NAMESPACE IF NOT EXISTS {{ target.catalog }}.{{ target.schema }}"]
+    pre_hook=["CREATE NAMESPACE IF NOT EXISTS {{ env_var('DBT_CATALOG', 'polaris') }}.{{ this.schema }}"]
   )
 }}
 

@@ -2,7 +2,7 @@
 
 Lakehouse Unplugged is a laptop-first playground for learning how an open
 lakehouse fits together. It combines Apache Spark, Apache Iceberg, Apache
-Polaris, SeaweedFS, dbt, JupyterLab, Trino, and an experimental Airflow setup
+Polaris, RustFS, dbt, JupyterLab, Trino, and an experimental Airflow setup
 in one Docker Compose stack.
 
 The default architecture is:
@@ -26,7 +26,7 @@ flowchart LR
     end
 
     subgraph storage["Object storage"]
-        seaweed[("SeaweedFS<br/>warehouse bucket")]
+        rustfs[("RustFS<br/>S3-compatible warehouse bucket")]
     end
 
     jupyter -->|"Spark jobs"| spark
@@ -37,8 +37,8 @@ flowchart LR
     trino -->|"Catalog metadata · REST"| polaris
     polaris -->|"Persists state"| postgres
 
-    spark -->|"Read/write Iceberg data · S3"| seaweed
-    trino -->|"Read Iceberg data · S3"| seaweed
+    spark -->|"Read/write Iceberg data · S3"| rustfs
+    trino -->|"Read Iceberg data · S3"| rustfs
 
     classDef client fill:#e8f1ff,stroke:#2563eb,color:#172554
     classDef engine fill:#ecfdf5,stroke:#059669,color:#064e3b
@@ -48,19 +48,19 @@ flowchart LR
     class jupyter,dbt client
     class spark,thrift,trino engine
     class polaris,postgres metadata
-    class seaweed data
+    class rustfs data
 ```
 
 > This repository is intended for local development, learning, and migration
-> validation. SeaweedFS runs in single-node `mini` mode and the default
-> credentials are development credentials. Do not use this setup as-is in
-> production.
+> validation. RustFS runs in single-node, single-disk mode and the default
+> credentials are development credentials. The pinned RustFS release is a beta
+> pre-release. Do not use this setup as-is in production.
 
 ## What is included?
 
 | Component | Purpose | Status |
 |---|---|---|
-| SeaweedFS | S3-compatible object storage | Working, single-node proof of concept |
+| RustFS | S3-compatible object storage | Working, single-node proof of concept |
 | Spark master and worker | ETL and distributed processing | Working |
 | Spark Thrift Server | JDBC/Thrift endpoint for dbt | Working |
 | Polaris | Iceberg REST catalog and governance | Working |
@@ -118,8 +118,9 @@ Check the startup status:
 docker compose ps
 ```
 
-Some services wait for SeaweedFS or Polaris to become healthy. If a service is
-still starting, inspect its logs:
+Storage consumers wait for the RustFS health check and the one-shot bucket
+initializer. Catalog consumers wait for the Polaris catalog bootstrap. If a
+service is still starting, inspect its logs:
 
 ```bash
 docker compose logs -f <service-name>
@@ -130,8 +131,7 @@ docker compose logs -f <service-name>
 | Service | Endpoint | Notes |
 |---|---|---|
 | Polaris UI | http://localhost:3000 | Read-only UI |
-| SeaweedFS Filer UI | http://localhost:8887 | Browse stored files |
-| SeaweedFS Master UI | http://localhost:9333 | Cluster status |
+| RustFS Console | http://localhost:9001 | Browse and manage local object storage |
 | Spark Master UI | http://localhost:8080 | Spark applications and workers |
 | Spark Worker UI | http://localhost:8081 | Worker status |
 | JupyterLab | http://localhost:8888 | No token in this local setup |
@@ -139,13 +139,13 @@ docker compose logs -f <service-name>
 | Airflow UI | http://localhost:8089 | `admin` / `admin`; work in progress |
 | Polaris API | http://localhost:8181 | REST API |
 | Polaris health | http://localhost:8182/q/health | Health endpoint |
-| SeaweedFS S3 API | http://localhost:8333 | Authenticated API, not a UI |
+| RustFS S3 API | http://localhost:9000 | Authenticated S3-compatible API |
 | Spark Thrift Server | `jdbc:hive2://localhost:10000` | JDBC endpoint for dbt and SQL clients |
 
-Opening `http://localhost:8333` directly in a browser returns an
+Opening `http://localhost:9000` directly in a browser returns an
 `AccessDenied` XML response. That is expected: it is an S3 API and its requests
-must be signed with the AWS credentials from `.env`. Use the Filer UI on port
-`8887` to browse the files.
+must be signed with the S3 credentials from `.env`. Use the RustFS Console on
+port `9001` to browse the files.
 
 ## First checks
 
@@ -193,7 +193,7 @@ src/notebooks/00_setup_and_test.ipynb
 ```
 
 The notebook is mounted from the repository, connects to
-`spark://spark-master:7077`, and uses the same Polaris and SeaweedFS
+`spark://spark-master:7077`, and uses the same Polaris and generic S3
 configuration as the Spark services.
 
 If the `polaris` catalog is missing from an existing notebook session, restart
@@ -292,7 +292,8 @@ All services communicate through the `lakehouse` Docker network.
 - **Spark** performs processing and writes Iceberg tables.
 - **Polaris** is the default catalog and source of truth for Iceberg metadata,
   namespaces, roles, and catalog access.
-- **SeaweedFS** stores the Iceberg data files in the `warehouse` bucket.
+- **RustFS** stores the Iceberg data files in the `warehouse` bucket through
+  its standard S3-compatible interface.
 - **dbt** sends SQL to the Spark Thrift Server and builds the Silver and Gold
   layers.
 - **JupyterLab** provides an interactive Spark driver for experiments and
@@ -324,14 +325,14 @@ The shared Spark image contains the matching Iceberg runtime, AWS bundle,
 Polaris is the default:
 
 ```text
-Spark → Polaris REST catalog → Iceberg data on SeaweedFS
-Trino → Polaris REST catalog → Iceberg data on SeaweedFS
+Spark → Polaris REST catalog → Iceberg data through the S3 API → RustFS
+Trino → Polaris REST catalog → Iceberg data through the S3 API → RustFS
 ```
 
 A Hadoop filesystem catalog remains available for troubleshooting:
 
 ```text
-Spark → Hadoop catalog → Iceberg data on SeaweedFS
+Spark → Hadoop catalog → Iceberg data through the S3 API → RustFS
 ```
 
 Set `SPARK_CATALOG_MODE` to `polaris` or `filesystem` for the relevant Spark
@@ -424,7 +425,7 @@ docker compose up -d
 
 ### Full reset
 
-This removes the containers and all named volumes, including SeaweedFS,
+This removes the containers and all named volumes, including RustFS,
 Polaris, Trino, and Airflow data:
 
 ```bash
@@ -460,16 +461,76 @@ Local defaults are stored in `.env`. Important settings include:
 
 | Variable | Default purpose |
 |---|---|
-| `S3_ENDPOINT` | Internal SeaweedFS S3 endpoint |
+| `S3_ENDPOINT` | Internal S3-compatible endpoint (`http://rustfs:9000`) |
+| `S3_PUBLIC_ENDPOINT` | Host-facing S3-compatible endpoint used by checks (`http://localhost:9000`) |
 | `S3_BUCKET` | Object-storage bucket |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Local S3 credentials |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | Local object-storage credentials |
+| `S3_REGION` | S3 signing and client region |
+| `S3_PATH_STYLE_ACCESS` | Force path-style S3 requests for local storage |
+| `S3_SSL_ENABLED` | Enable S3A TLS; `false` for the local HTTP endpoint |
 | `POLARIS_CLIENT_ID` / `POLARIS_CLIENT_SECRET` | Local Polaris credentials |
 | `POLARIS_URI` | Internal Polaris catalog endpoint |
+| `POLARIS_PUBLIC_HEALTH_URL` | Host-facing Polaris health endpoint used by checks |
 | `ICEBERG_WAREHOUSE` | Iceberg data location |
+| `DBT_SPARK_PUBLIC_HOST` | Host-facing Spark Thrift hostname used by checks |
 | `HADOOP_VERSION` / `AWS_SDK_VERSION` | Spark base-image build versions |
 
 The checked-in values are local development defaults. Replace them for any
 shared or externally accessible environment.
+
+### Object-storage startup and troubleshooting
+
+RustFS uses the official `rustfs/rustfs:1.0.0-beta.11` image. This is an exact
+beta/pre-release pin. The deployment deliberately uses the simple
+single-node, single-disk topology appropriate for this PoC. A named Docker
+volume, `rustfs-data`, is mounted at `/data`; `rustfs-permissions` prepares that
+volume for RustFS's non-root user before the server starts.
+
+The S3 API listens on `9000`, the Console on `9001`, and the Compose health
+check calls `http://localhost:9000/health`. After RustFS is healthy,
+`object-storage-init` runs the pinned AWS CLI `2.35.21`, creates the configured
+`S3_BUCKET` if necessary, verifies it, and exits. Re-running the initializer is
+safe when the bucket already exists:
+
+```bash
+docker compose run --rm object-storage-init
+```
+
+Useful checks:
+
+```bash
+curl http://localhost:9000/health
+docker compose logs rustfs
+docker compose logs object-storage-init
+docker compose run --rm --entrypoint /bin/sh object-storage-init -c \
+  'aws --endpoint-url "$S3_ENDPOINT" s3api list-buckets'
+```
+
+Spark receives the generic endpoint, region, path-style, and SSL settings at
+container startup. It uses standard Iceberg `S3FileIO` and Hadoop S3A clients.
+Trino uses its native S3 client with the same generic settings. Polaris records
+the unchanged logical warehouse paths `s3://warehouse/` and
+`s3://warehouse/polaris`; no consumer uses a RustFS-specific API.
+
+### Persistence and migration notes
+
+Normal `docker compose down`, container recreation, and RustFS restarts retain
+the `rustfs-data` volume. `docker compose down -v` or
+`Reset-Lakehouse.ps1 -FullReset` deletes it and all other Compose-managed data
+volumes.
+
+The former SeaweedFS named volume is not referenced by the new Compose file and
+is not automatically deleted. SeaweedFS's on-disk format cannot be mounted
+directly as a RustFS data volume. Existing PoC objects must be recreated or
+copied separately through the S3 API before retiring that old volume.
+
+Polaris 1.7.0 continues to persist catalog state in `polaris-db-data`.
+`polaris-admin` uses `apache/polaris-admin-tool:1.7.0` to bootstrap the JDBC
+schema and `POLARIS` realm before the server starts; the 1.7.0 bootstrap is
+idempotent for an existing realm. Polaris does not automatically migrate older
+JDBC schemas. Back up a long-lived database and review the upstream relational
+JDBC schema-upgrade notes before manually advancing its schema version. A fresh
+volume receives the current schema during bootstrap.
 
 ## Project structure
 
@@ -491,11 +552,13 @@ shared or externally accessible environment.
 
 The repository currently pins:
 
-- Apache Polaris `1.5.0`
+- Apache Polaris `1.7.0`
+- Apache Polaris Admin Tool `1.7.0`
 - Apache Spark `3.5.1`
 - Apache Iceberg runtime `1.10.0`
 - Trino `480`
-- SeaweedFS `4.29`
+- RustFS `1.0.0-beta.11` (beta/pre-release)
+- AWS CLI `2.35.21` for idempotent bucket initialization
 - Python `3.11` for Spark drivers and executors
 
 ## Future extensions

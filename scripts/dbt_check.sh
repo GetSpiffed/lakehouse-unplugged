@@ -10,12 +10,16 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
 fi
 DBT_SPARK_HOST="${DBT_SPARK_HOST:-thrift-server}"
 DBT_SPARK_PORT="${DBT_SPARK_PORT:-10000}"
+DBT_SPARK_PUBLIC_HOST="${DBT_SPARK_PUBLIC_HOST:-localhost}"
 DBT_CATALOG="${DBT_CATALOG:-polaris}"
 DBT_SCHEMA="${DBT_SCHEMA:-dbt_demo}"
 POLARIS_URI="${POLARIS_URI:-http://polaris:8181/api/catalog}"
 POLARIS_OAUTH2_TOKEN_URL="${POLARIS_OAUTH2_TOKEN_URL:-http://polaris:8181/api/catalog/v1/oauth/tokens}"
+POLARIS_PUBLIC_HEALTH_URL="${POLARIS_PUBLIC_HEALTH_URL:-http://localhost:8182/q/health}"
 ICEBERG_WAREHOUSE="${ICEBERG_WAREHOUSE:-s3://warehouse/polaris}"
-S3_ENDPOINT="${S3_ENDPOINT:-http://seaweedfs:8333}"
+S3_ENDPOINT="${S3_ENDPOINT:-http://rustfs:9000}"
+S3_PUBLIC_ENDPOINT="${S3_PUBLIC_ENDPOINT:-http://localhost:9000}"
+S3_BUCKET="${S3_BUCKET:-warehouse}"
 
 wait_for_port() {
   local name="$1"
@@ -65,42 +69,44 @@ wait_for_http() {
 
 wait_for_s3() {
   local retries="${1:-60}"
-  local region="${AWS_REGION:-us-east-1}"
-  echo "⏳ Waiting for SeaweedFS S3 at ${S3_ENDPOINT}..."
+  local region="${S3_REGION:-us-east-1}"
+  echo "⏳ Waiting for S3-compatible object storage at ${S3_PUBLIC_ENDPOINT}..."
   for ((i = 1; i <= retries; i++)); do
     if curl -fsS \
       --aws-sigv4 "aws:amz:${region}:s3" \
-      --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" \
-      "${S3_ENDPOINT}/" | grep -q '<Name>warehouse</Name>'; then
-      echo "✅ SeaweedFS S3 is reachable and warehouse exists"
+      --user "${S3_ACCESS_KEY}:${S3_SECRET_KEY}" \
+      "${S3_PUBLIC_ENDPOINT}/" | grep -q "<Name>${S3_BUCKET}</Name>"; then
+      echo "✅ S3-compatible object storage is reachable and ${S3_BUCKET} exists"
       return 0
     fi
     sleep 2
   done
-  echo "❌ Timed out waiting for SeaweedFS S3"
+  echo "❌ Timed out waiting for S3-compatible object storage"
   return 1
 }
 
 export S3_ENDPOINT
 wait_for_s3
-wait_for_http "Polaris" "http://polaris:8182/q/health"
-wait_for_port "Spark Thrift Server" "${DBT_SPARK_HOST}" "${DBT_SPARK_PORT}"
+wait_for_http "Polaris" "${POLARIS_PUBLIC_HEALTH_URL}"
+wait_for_port "Spark Thrift Server" "${DBT_SPARK_PUBLIC_HOST}" "${DBT_SPARK_PORT}"
 
 cat <<INFO
 
 🔎 dbt / Spark connection details
 - host=${DBT_SPARK_HOST}
 - port=${DBT_SPARK_PORT}
+- public_host=${DBT_SPARK_PUBLIC_HOST}
 - catalog=${DBT_CATALOG}
 - schema=${DBT_SCHEMA}
 - warehouse=${ICEBERG_WAREHOUSE}
 - polaris=${POLARIS_URI}
 - polaris_token_url=${POLARIS_OAUTH2_TOKEN_URL}
 - s3_endpoint=${S3_ENDPOINT}
+- s3_public_endpoint=${S3_PUBLIC_ENDPOINT}
 INFO
 
-echo "\n🔌 dbt debug (dbt container)"
-docker compose run --rm \
+printf '\n🔌 dbt debug (dbt container)\n'
+docker compose run --rm --no-deps --entrypoint dbt \
   -e DBT_SPARK_HOST="${DBT_SPARK_HOST}" \
   -e DBT_SPARK_PORT="${DBT_SPARK_PORT}" \
   -e DBT_CATALOG="${DBT_CATALOG}" \

@@ -2,32 +2,62 @@ name: lakehouse-unplugged
 
 services:
   # ======================================================================
-  # 🗄️ SeaweedFS mini – lokale S3-compatible opslag (proof-of-concept)
+  # 🗄️ RustFS – lokale S3-compatible opslag (single-node proof-of-concept)
   # ======================================================================
-  seaweedfs:
-    image: chrislusf/seaweedfs:4.29
-    command: ["mini", "-dir=/data"]
-    env_file:
-      - ./.env
-    environment:
-      S3_BUCKET: warehouse
-    ports:
-      - "8333:8333"  # S3 API (requires AWS authentication; not a browser UI)
-      - "8887:8888"  # Filer UI (host 8887 avoids conflict with Jupyter on 8888)
-      - "9333:9333"  # Master UI
+  rustfs-permissions:
+    image: alpine:3.22.1
+    user: "0:0"
+    command: ["sh", "-c", "chown -R 10001:10001 /data"]
     volumes:
-      - seaweedfs-data:/data
+      - rustfs-data:/data
+    restart: "no"
+
+  rustfs:
+    image: rustfs/rustfs:1.0.0-beta.11
+    depends_on:
+      rustfs-permissions:
+        condition: service_completed_successfully
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY}
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # RustFS Console
+    volumes:
+      - rustfs-data:/data
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          curl -fsS --aws-sigv4 "aws:amz:$${AWS_REGION}:s3"
-          --user "$${AWS_ACCESS_KEY_ID}:$${AWS_SECRET_ACCESS_KEY}"
-          http://localhost:8333/ >/dev/null
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/health"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 15s
+    restart: unless-stopped
+    networks:
+      - lakehouse
+
+  object-storage-init:
+    image: amazon/aws-cli:2.35.21
+    entrypoint: ["/bin/sh"]
+    command: ["/app/init.sh"]
+    env_file:
+      - ./.env
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_REGION: ${S3_REGION}
+      AWS_DEFAULT_REGION: ${S3_REGION}
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_PAGER: ""
+    volumes:
+      - ./docker/object-storage-init/init.sh:/app/init.sh:ro
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    restart: "no"
     networks:
       - lakehouse
 
@@ -52,14 +82,26 @@ services:
     networks:
       - lakehouse
 
-    
-  polaris:
-    image: apache/polaris:1.5.0
+  polaris-admin:
+    image: apache/polaris-admin-tool:1.7.0
     depends_on:
       polaris-db:
         condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
+    environment:
+      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+      QUARKUS_DATASOURCE_USERNAME: polaris
+      QUARKUS_DATASOURCE_PASSWORD: polaris
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://polaris-db:5432/polaris
+    command: ["bootstrap", "-r", "POLARIS", "-c", "POLARIS,${POLARIS_CLIENT_ID},${POLARIS_CLIENT_SECRET}"]
+    restart: "no"
+    networks:
+      - lakehouse
+
+  polaris:
+    image: apache/polaris:1.7.0
+    depends_on:
+      polaris-admin:
+        condition: service_completed_successfully
     platform: linux/amd64
     container_name: polaris
     env_file:
@@ -70,24 +112,22 @@ services:
       timeout: 5s
       retries: 10
     environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_REGION: ${S3_REGION}
+      AWS_DEFAULT_REGION: ${S3_REGION}
       AWS_ENDPOINT_URL_S3: ${S3_ENDPOINT}
-      POLARIS_CATALOG_WAREHOUSE: s3://warehouse
 
-      POLARIS_BOOTSTRAP_CREDENTIALS: "POLARIS,admin,password"
       polaris.realm-context.realms: "POLARIS"
-      POLARIS_OAUTH2_CLIENT_ID: ${POLARIS_CLIENT_ID}
-      POLARIS_OAUTH2_CLIENT_SECRET: ${POLARIS_CLIENT_SECRET}
 
       POLARIS_UI_ENABLED: "true"
       POLARIS_FEATURES_ICEBERG_COMPAT_ENABLED: "true"
       POLARIS_FEATURES_ICEBERG_COMPAT_PREFIX: "/api/catalog"
 
-      POLARIS_DB_URL: jdbc:postgresql://polaris-db:5432/polaris
-      POLARIS_DB_USER: polaris
-      POLARIS_DB_PASSWORD: polaris
+      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+      QUARKUS_DATASOURCE_USERNAME: polaris
+      QUARKUS_DATASOURCE_PASSWORD: polaris
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://polaris-db:5432/polaris
     ports:
       - "8181:8181"
       - "8182:8182"
@@ -103,11 +143,13 @@ services:
     environment:
       POLARIS_BASE: http://polaris:8181
       S3_ENDPOINT: ${S3_ENDPOINT}
+      POLARIS_BOOTSTRAP_CLIENT_ID: ${POLARIS_CLIENT_ID}
+      POLARIS_BOOTSTRAP_CLIENT_SECRET: ${POLARIS_CLIENT_SECRET}
     depends_on:
       polaris:
         condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
+      object-storage-init:
+        condition: service_completed_successfully
     networks:
       - lakehouse
 
@@ -121,8 +163,8 @@ services:
     environment:
       POLARIS_BASE_URL: http://polaris:8181
     depends_on:
-      polaris:
-        condition: service_healthy
+      polaris-bootstrap:
+        condition: service_completed_successfully
     ports:
       - "3000:3000"
     networks:
@@ -150,15 +192,18 @@ services:
     depends_on:
       spark-base-builder:
         condition: service_completed_successfully
-      seaweedfs:
-        condition: service_healthy
+      object-storage-init:
+        condition: service_completed_successfully
+      polaris-bootstrap:
+        condition: service_completed_successfully
     env_file:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_REGION: ${S3_REGION}
+      AWS_DEFAULT_REGION: ${S3_REGION}
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
       --host spark-master --port 7077 --webui-port 8080
@@ -173,15 +218,18 @@ services:
     depends_on:
       spark-master:
         condition: service_started
+      object-storage-init:
+        condition: service_completed_successfully
     env_file:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
       SPARK_WORKER_CORES: 4
       SPARK_WORKER_MEMORY: 4g
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_REGION: ${S3_REGION}
+      AWS_DEFAULT_REGION: ${S3_REGION}
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
       spark://spark-master:7077 --webui-port 8081
@@ -198,17 +246,18 @@ services:
         condition: service_started
       spark-worker:
         condition: service_started
-      seaweedfs:
-        condition: service_healthy
-      polaris:
-        condition: service_healthy
+      object-storage-init:
+        condition: service_completed_successfully
+      polaris-bootstrap:
+        condition: service_completed_successfully
     env_file:
       - ./.env
     environment:
       SPARK_CATALOG_MODE: polaris   # of: filesystem
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_REGION: ${S3_REGION}
+      AWS_DEFAULT_REGION: ${S3_REGION}
     command: /opt/spark/bin/bootstrap.sh
     volumes:
       - ./docker/thrift-server/bootstrap.sh:/opt/spark/bin/bootstrap.sh:ro
@@ -240,10 +289,10 @@ services:
       retries: 10
       start_period: 30s      
     depends_on:
-      polaris:
-        condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
+      polaris-bootstrap:
+        condition: service_completed_successfully
+      object-storage-init:
+        condition: service_completed_successfully
     networks:
       - lakehouse
 
@@ -264,19 +313,20 @@ services:
         condition: service_started
       spark-worker:
         condition: service_started
-      seaweedfs:
-        condition: service_healthy
-      polaris:
-        condition: service_healthy
+      object-storage-init:
+        condition: service_completed_successfully
+      polaris-bootstrap:
+        condition: service_completed_successfully
     env_file:
       - ./.env
     environment:
       # Zorg dat executors de driver terug kunnen bereiken
       SPARK_DRIVER_HOST: jupyter
       SPARK_MASTER: spark://spark-master:7077
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_REGION: ${S3_REGION}
+      AWS_DEFAULT_REGION: ${S3_REGION}
 
     ports:
       - "8888:8888"
@@ -297,10 +347,10 @@ services:
     command: sleep infinity
   
     depends_on:
-      seaweedfs:
-        condition: service_healthy
-      polaris:
-        condition: service_healthy
+      object-storage-init:
+        condition: service_completed_successfully
+      polaris-bootstrap:
+        condition: service_completed_successfully
       spark-master:
         condition: service_started
       spark-worker:
@@ -444,7 +494,7 @@ services:
       - lakehouse
 
 volumes:
-  seaweedfs-data:
+  rustfs-data:
   trino-data:
   airflow-db-data:
   polaris-db-data:

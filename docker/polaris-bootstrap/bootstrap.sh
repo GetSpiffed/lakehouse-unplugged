@@ -7,11 +7,20 @@ log() {
 
 POLARIS_BASE=${POLARIS_BASE:-http://polaris:8181}
 POLARIS_CATALOG_NAME=${POLARIS_CATALOG_NAME:-polaris}
-S3_ENDPOINT=${S3_ENDPOINT:-http://seaweedfs:8333}
+S3_ENDPOINT=${S3_ENDPOINT:-http://rustfs:9000}
 S3_REGION=${S3_REGION:-us-east-1}
+S3_PATH_STYLE_ACCESS=${S3_PATH_STYLE_ACCESS:-true}
 POLARIS_DEFAULT_BASE_LOCATION=${POLARIS_DEFAULT_BASE_LOCATION:-s3://warehouse/polaris}
-POLARIS_ALLOWED_PREFIX=${POLARIS_ALLOWED_PREFIX:-s3://warehouse/}
+POLARIS_ALLOWED_PREFIX=${POLARIS_ALLOWED_PREFIX:-s3://warehouse/polaris/}
 POLARIS_SCOPE=${POLARIS_SCOPE:-PRINCIPAL_ROLE:ALL}
+
+case "${S3_PATH_STYLE_ACCESS}" in
+  true|false) ;;
+  *)
+    log "S3_PATH_STYLE_ACCESS must be 'true' or 'false'."
+    exit 1
+    ;;
+esac
 
 bootstrap_realm=""
 bootstrap_client_id="${POLARIS_BOOTSTRAP_CLIENT_ID:-admin}"
@@ -59,9 +68,10 @@ if [[ -z "${token}" ]]; then
 fi
 
 log "Checking catalog '${POLARIS_CATALOG_NAME}'..."
-catalog_status=$(curl -s -o /dev/null -w "%{http_code}" \
+catalog_url="${POLARIS_BASE}/api/management/v1/catalogs/${POLARIS_CATALOG_NAME}"
+catalog_status=$(curl -s -o /tmp/polaris_catalog.json -w "%{http_code}" \
   -H "Authorization: Bearer ${token}" \
-  "${POLARIS_BASE}/api/management/v1/catalogs/${POLARIS_CATALOG_NAME}" || true)
+  "${catalog_url}" || true)
 
 if [[ "${catalog_status}" == "404" ]]; then
   log "Catalog not found, creating..."
@@ -71,6 +81,7 @@ if [[ "${catalog_status}" == "404" ]]; then
     --arg allowed "${POLARIS_ALLOWED_PREFIX}" \
     --arg endpoint "${S3_ENDPOINT}" \
     --arg region "${S3_REGION}" \
+    --argjson path_style "${S3_PATH_STYLE_ACCESS}" \
     '{
       catalog: {
         name: $name,
@@ -81,7 +92,7 @@ if [[ "${catalog_status}" == "404" ]]; then
           allowedLocations: [$allowed],
           endpoint: $endpoint,
           region: $region,
-          pathStyleAccess: true,
+          pathStyleAccess: $path_style,
           stsUnavailable: true
         }
       }
@@ -102,6 +113,59 @@ if [[ "${catalog_status}" == "404" ]]; then
   log "Catalog '${POLARIS_CATALOG_NAME}' created."
 elif [[ "${catalog_status}" == "200" ]]; then
   log "Catalog '${POLARIS_CATALOG_NAME}' already exists."
+
+  catalog_needs_update=$(jq -r \
+    --arg default_base "${POLARIS_DEFAULT_BASE_LOCATION}" \
+    --arg allowed "${POLARIS_ALLOWED_PREFIX}" \
+    --arg endpoint "${S3_ENDPOINT}" \
+    --arg region "${S3_REGION}" \
+    --argjson path_style "${S3_PATH_STYLE_ACCESS}" \
+    '(
+      .properties["default-base-location"] != $default_base or
+      .storageConfigInfo.allowedLocations != [$allowed] or
+      .storageConfigInfo.endpoint != $endpoint or
+      .storageConfigInfo.region != $region or
+      .storageConfigInfo.pathStyleAccess != $path_style or
+      .storageConfigInfo.stsUnavailable != true
+    )' /tmp/polaris_catalog.json)
+
+  if [[ "${catalog_needs_update}" == "true" ]]; then
+    log "Reconciling catalog storage settings with the configured S3 backend..."
+    payload=$(jq \
+      --arg default_base "${POLARIS_DEFAULT_BASE_LOCATION}" \
+      --arg allowed "${POLARIS_ALLOWED_PREFIX}" \
+      --arg endpoint "${S3_ENDPOINT}" \
+      --arg region "${S3_REGION}" \
+      --argjson path_style "${S3_PATH_STYLE_ACCESS}" \
+      '{
+        currentEntityVersion: .entityVersion,
+        properties: (.properties + {"default-base-location": $default_base}),
+        storageConfigInfo: (.storageConfigInfo + {
+          storageType: "S3",
+          allowedLocations: [$allowed],
+          endpoint: $endpoint,
+          region: $region,
+          pathStyleAccess: $path_style,
+          stsUnavailable: true
+        })
+      }' /tmp/polaris_catalog.json)
+
+    update_status=$(curl -s -o /tmp/polaris_catalog_update.json -w "%{http_code}" \
+      -H "Authorization: Bearer ${token}" \
+      -H "Content-Type: application/json" \
+      -X PUT "${catalog_url}" \
+      -d "${payload}")
+
+    if [[ "${update_status}" != "200" ]]; then
+      log "Catalog update failed with status ${update_status}."
+      cat /tmp/polaris_catalog_update.json
+      exit 1
+    fi
+
+    log "Catalog '${POLARIS_CATALOG_NAME}' storage settings updated."
+  else
+    log "Catalog storage settings already match the configured S3 backend."
+  fi
 else
   log "Unexpected status when checking catalog: ${catalog_status}"
   exit 1
