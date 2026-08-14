@@ -565,6 +565,7 @@ The repository currently pins:
 
 - Complete Airflow/Cosmos orchestration
 - Polaris credential delegation and fine-grained policies
+- Apache Ossie support when Polaris supports it
 - Metadata and lineage with OpenMetadata
 - Data quality tooling such as Great Expectations or Soda
 - DuckDB-based local analytics and CI checks
